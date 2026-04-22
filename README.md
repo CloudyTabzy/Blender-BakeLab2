@@ -1,5 +1,5 @@
 # Blender-BakeLab2
-![Thumbnail](bakelab_thumbnail_text_logo_small.jpg)
+![Thumbnail](bakelab_thumbnail_text_logo_small.png)
 BakeLab - A blender addon for baking images.<br>
 Compatible with Blender 5.0 or higher.
 
@@ -13,7 +13,9 @@ Main Features:
 * Bake any PBR attributes of your material by its name (Metallic, Roughness, Specular and etc);
 * Adaptive image size by object's surface size;
 * Unwrap and Bake Multiple Objects into one image;
-* Per-map clear image option for transparent backgrounds;
-* Max ray distance support for improved baking control;
+* **Per-map clear image option for transparent backgrounds**;
+* **Max ray distance support for improved baking control**;
+* **Blender 5.0+ exclusive compatibility with modern API features**;
+* **Blender Extensions manifest for official extension support**;
 
 ![Screen](bakelab_screen.png)
