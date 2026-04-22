@@ -1,0 +1,22 @@
+schema_version = "1.0.0"
+
+id = "blender_bakelab"
+version = "2.0.1"
+name = "BakeLab"
+tagline = "Bake textures easily with automated material setup and image generation"
+maintainer = "Tabzy"
+type = "add-on"
+
+website = "https://github.com/CloudyTabzy/Blender-BakeLab2"
+
+tags = ["Baking", "Material", "Texture"]
+
+blender_version_min = "5.0.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+copyright = [
+  "2024 Tabzy",
+]
