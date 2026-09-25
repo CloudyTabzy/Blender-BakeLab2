@@ -114,7 +114,6 @@ class BakeLabUI(Panel):
                         'Diffuse',
                         'Glossy',
                         'Transmission',
-                        'Subsurface',
                         'Normal'
                     }:
                         row = box.row()
@@ -142,8 +141,7 @@ class BakeLabUI(Panel):
                         if item.type in {
                             'Diffuse',
                             'Glossy',
-                            'Transmission',
-                            'Subsurface'
+                            'Transmission'
                         }:
                             row = box.row(align = True)
                             row.use_property_split = False

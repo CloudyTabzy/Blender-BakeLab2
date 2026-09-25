@@ -52,7 +52,7 @@ class Baker(Operator):
         'Diffuse':      'DIFFUSE',
         'Glossy':       'GLOSSY',
         'Transmission': 'TRANSMISSION',
-        'Subsurface':   'TRANSMISSION', # No SUBSURFACE bake type since 2.83
+        'Subsurface':   'EMIT', # Subsurface Weight, SSS lighting is part of the Diffuse pass since 2.83
         'CustomPass':   'EMIT',
     }
 
@@ -455,7 +455,7 @@ class Baker(Operator):
             area = 0
             for obj in objects:
                 area += self.calc_surf_area(obj)
-            size = max(pow(area, 0.5) * props.texel_per_unit, 1)
+            size = max(pow(area, 0.5) * props.texel_per_unit * map.image_scale, 1)
             if props.round_adaptive_image:
                 size = self.round_to_power_of_2(size)
             size = int(min(max(size, props.image_min_size), props.image_max_size))
@@ -501,7 +501,13 @@ class Baker(Operator):
                 bake_image.filepath = abspath(join(abs_save_path, bake_image.name + extension))
             
             bake_image.save_render(bake_image.filepath)
-        
+
+        # A reused image keeps the size of its last bake, which was downscaled after anti-aliasing.
+        # Resized last, since changing the filepath above can reload the image from disk
+        bake_size = (map.target_width * map.final_aa, map.target_height * map.final_aa)
+        if tuple(bake_image.size) != bake_size:
+            bake_image.scale(*bake_size)
+
         return bake_image
     
     def SetSaveImageSettings(self, context, map):
@@ -587,6 +593,9 @@ class Baker(Operator):
                 if map.type == 'Albedo':
                     self.ungroup_nodes(mat.node_tree)
                     self.passes_to_emit_node(mat, 'Albedo,Color,Base Color,Col,Paint Color')
+                if map.type == 'Subsurface':
+                    self.ungroup_nodes(mat.node_tree)
+                    self.passes_to_emit_node(mat, 'Subsurface Weight,Subsurface')
                 if map.type == 'Displacement':
                     self.displacement_to_color(mat)
                     
@@ -888,8 +897,9 @@ class Baker(Operator):
             if len(selected_objects) < 2:
                 self.report(type = {'ERROR'}, message = 'Select atleast two mesh objects')
                 yield -1
-            if active_object.type != 'MESH':
-                self.report(type = {'ERROR'}, message = 'Active object is not mesh type')
+            # The active object's materials are only preserved if it's one of the selected objects
+            if active_object not in selected_objects:
+                self.report(type = {'ERROR'}, message = 'Active object must be a selected mesh with faces')
                 yield -1
             if len(active_object.data.uv_layers) == 0:
                 self.report(type = {'ERROR'}, message = 'Active object does not have UV maps')

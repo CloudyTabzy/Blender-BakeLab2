@@ -29,7 +29,7 @@ Add each map type, bake the cube, and check that an image is produced and looks 
 - [ ] Roughness
 - [ ] Emission
 - [ ] Diffuse
-- [ ] Subsurface *(regression: used to pass invalid bake type `'Transmission'`)*
+- [ ] Subsurface: bakes the material's **Subsurface Weight** (e.g. 0.3 gives a flat 0.3 grey, Non-Color). *Generate Materials* connects it to *Subsurface Weight* *(regression: used to bake the Transmission light pass)*
 - [ ] Transmission *(regression: used to crash with `UnboundLocalError`)*
 - [ ] Shadow
 - [ ] Environment
@@ -45,6 +45,7 @@ Add each map type, bake the cube, and check that an image is produced and looks 
 - [ ] **All To One** (Pre-Join off): cube + sphere, Albedo, *Clear image* **on**. Result: one `Atlas` image containing **both** objects *(regression: only the last object used to survive)*.
 - [ ] **All To One** (Pre-Join on): same as above. The bake succeeds *(regression: used to fail with "No active UV layer found" on the merged object)*, the status display names the merged object while baking, and the temporary merged object is removed afterwards.
 - [ ] **Selected to Active**: high-poly + low-poly cube, Normal map. Detail transfers, and the status display names the **active** object *(regression)*.
+- [ ] **Selected to Active** with no active object (or an active object that isn't selected): error "Active object must be a selected mesh with faces", no traceback *(regression)*.
 - [ ] **Shared meshes**: in Selected to Active (and All To One with Pre-Join), make the source a linked duplicate pair (*Alt+D*) sharing a material. After the bake, the original material still exists and is still assigned, with no `.001` copies left *(regression: the original material used to be deleted)*.
 - [ ] **Max Ray Distance**: in Selected to Active, set it to a small non-zero value and confirm it's applied (*Render Properties > Bake > Selected to Active*). It's independent of Cage Extrusion *(regression: it used to copy the cage extrusion value)*. After the bake finishes, the scene's original bake settings are restored.
 
@@ -54,6 +55,8 @@ Add each map type, bake the cube, and check that an image is produced and looks 
 - [ ] **Adaptive** *(regression: used to crash with `NameError`/`TypeError`)*:
   - [ ] Bake succeeds, and the size follows `sqrt(surface area) * Texels Per Unit`.
   - [ ] Results are clamped between **Min Size** and **Max Size** (e.g. Max = 64 gives a 64x64 image).
+  - [ ] Editing **Min Size** or **Max Size** doesn't crash Blender, and raising Min above Max pushes Max up (and vice versa) *(regression: stack overflow)*.
+  - [ ] The map's **Image Scale** multiplies the size: a 2x2x2 cube at 10 Texels Per Unit gives 64x64, and 128x128 with Image Scale 2 *(regression: it was ignored)*.
   - [ ] *Round to power of two* gives power-of-two sizes.
   - [ ] Texels Per Unit = 0 doesn't crash (the size clamps to Min Size).
 - [ ] **Anti-aliasing** = 2: the bake runs at 2x size, and the final image is downscaled back to the target size.
@@ -66,7 +69,7 @@ Add each map type, bake the cube, and check that an image is produced and looks 
 
 - [ ] *Clear image* on: background pixels (pure black) get alpha 0, and the baked area stays opaque.
 - [ ] 2048x2048 with AA 2 and *Clear image* on: the transparency pass finishes in about a second, not minutes *(regression: it used to be a pure-Python per-pixel loop)*.
-- [ ] *Clear image* off with an existing image of the same name: the existing image is reused, not recreated.
+- [ ] *Clear image* off with an existing image of the same name: the existing image is reused, not recreated, and resized to the map's size (times anti-aliasing while baking) *(regression: it kept its old size)*.
 
 ## 7. Output
 

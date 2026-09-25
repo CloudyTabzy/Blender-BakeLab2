@@ -59,15 +59,21 @@ from bpy.props import (
         )
 from os.path import expanduser
 
+# Only assign when the value changes: assigning a property runs its update
+# callback again, so unconditional assignments here recurse until Blender crashes
 def updateAdaptiveImageMinSize(self, context):
-    self.image_min_size = min(self.image_min_size, self.image_max_size)
+    if self.image_min_size > self.image_max_size:
+        self.image_min_size = self.image_max_size
 
 def updateAdaptiveImageMaxSize(self, context):
-    self.image_max_size = max(self.image_min_size, self.image_max_size)
+    if self.image_max_size < self.image_min_size:
+        self.image_max_size = self.image_min_size
 
 def updateSavePath(self, context):
     if bpy.data.is_saved:
-        self.save_path = bpy.path.abspath(self.save_path)
+        abs_path = bpy.path.abspath(self.save_path)
+        if abs_path != self.save_path:
+            self.save_path = abs_path
 
 class BakeLabProperties(PropertyGroup):
     bake_state: EnumProperty(

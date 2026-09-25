@@ -130,6 +130,14 @@ class BakeLab_GenerateMaterials(Operator):
                 links.new(imgNode.outputs['Color'],pbr.inputs['Roughness'])
                 links.new(uvm.outputs['UV'],imgNode.inputs['Vector'])
                 pass_available = True
+            if bake_map.type == 'Subsurface':
+                imgNode = nodes.new(type = 'ShaderNodeTexImage')
+                imgNode.hide = True
+                imgNode.location = -1000, -350
+                imgNode.image = bake_image
+                links.new(imgNode.outputs['Color'],pbr.inputs['Subsurface Weight'])
+                links.new(uvm.outputs['UV'],imgNode.inputs['Vector'])
+                pass_available = True
             if bake_map.type == 'Transmission':
                 imgNode = nodes.new(type = 'ShaderNodeTexImage')
                 imgNode.hide = True
