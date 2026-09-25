@@ -196,6 +196,11 @@ class BakeLabUI(Panel):
                     row = col.row()
                     row.prop(item, "file_format")
                     row.prop(props, "show_file_settings", icon = 'PREFERENCES')
+                    if item.clear_img:
+                        if item.file_format == 'JPEG':
+                            col.label(text="JPEG can't store transparency", icon = 'ERROR')
+                        else:
+                            col.label(text="Saved as RGBA for transparency", icon = 'INFO')
                     if props.show_file_settings:
                         subcol = col.column()
                         if item.file_format == "PNG":
