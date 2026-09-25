@@ -6,7 +6,7 @@ been fixed, so they should never fail again.
 
 ## 0. Setup
 
-1. Zip the repo root and install it via *Edit > Preferences > Get Extensions > Install from Disk*.
+1. Build the zip with `blender --command extension validate` then `blender --command extension build` (both run from the repo folder, and both must succeed), and install it via *Edit > Preferences > Get Extensions > Install from Disk*.
 2. Open *Window > Toggle System Console* (Windows) or start Blender from a terminal, so Python errors are visible.
 3. Test scene: default cube + a UV sphere (both with UVs, both with a Principled BSDF material). For section 3, also add a subdivided, displaced copy of the cube as the high-poly source.
 
