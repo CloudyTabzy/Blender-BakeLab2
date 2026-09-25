@@ -40,11 +40,13 @@ class BakeLabUI(Panel):
                 col.prop(props, "bake_margin")
                 if props.bake_mode == "TO_ACTIVE":
                     col.prop(props, "cage_extrusion")
+                    col.prop(props, "max_ray_distance")
                 if props.bake_mode == "ALL_TO_ONE":
                     col.prop(props, "global_image_name")
                     col.prop(props, "pre_join_mesh")
                     if props.pre_join_mesh:
                         col.prop(props, "cage_extrusion")
+                        col.prop(props, "max_ray_distance")
             
             layout.separator()
             

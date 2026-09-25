@@ -1,5 +1,6 @@
 import os
 import bpy
+import numpy as np
 
 from bpy.types import (
             Operator, 
@@ -35,7 +36,26 @@ class Baker(Operator):
     _timer = None
     TMP_EMPTY_MAT_NAME = "BAKELAB_TMP_EMPTY_MAT"
     TMP_IMAGE_NODE_NAME = "BAKELAB_TMP_IMAGE_NODE"
-    
+
+    # BakeLab map type -> Cycles bake type
+    BAKE_TYPES = {
+        'Albedo':       'EMIT',
+        'Combined':     'COMBINED',
+        'AO':           'AO',
+        'Displacement': 'EMIT',
+        'Shadow':       'SHADOW',
+        'Normal':       'NORMAL',
+        'UV':           'UV',
+        'Roughness':    'ROUGHNESS',
+        'Emission':     'EMIT',
+        'Environment':  'ENVIRONMENT',
+        'Diffuse':      'DIFFUSE',
+        'Glossy':       'GLOSSY',
+        'Transmission': 'TRANSMISSION',
+        'Subsurface':   'TRANSMISSION', # No SUBSURFACE bake type since 2.83
+        'CustomPass':   'EMIT',
+    }
+
     def save_defaults(self, context):
         scene = context.scene
         render = scene.render
@@ -81,8 +101,6 @@ class Baker(Operator):
         #self.default_use_pass_ao       = bake_settings.use_pass_ambient_occlusion # No Longer in 3.0
         self.default_use_pass_emit     = bake_settings.use_pass_emit
     
-        self.default_use_cage          = bake_settings.use_cage
-        self.default_cage_extrusion    = bake_settings.cage_extrusion
         self.default_cage_object       = bake_settings.cage_object
         # }
         
@@ -130,8 +148,6 @@ class Baker(Operator):
         #bake_settings.use_pass_ambient_occlusion = self.default_use_pass_ao # No Longer in 3.0
         bake_settings.use_pass_emit              = self.default_use_pass_emit
     
-        bake_settings.use_cage                 = self.default_use_cage
-        bake_settings.cage_extrusion           = self.default_cage_extrusion
         bake_settings.cage_object              = self.default_cage_object
         # }
     
@@ -198,7 +214,7 @@ class Baker(Operator):
     def copy_node(self, dst_nodes, node):
         try:
             new_node = dst_nodes.new(type = node.bl_idname)
-        except:
+        except RuntimeError:
             return None
         for member in dir(node):
             try:
@@ -206,8 +222,8 @@ class Baker(Operator):
                 if value is None:
                     continue
                 setattr(new_node, member, value)
-            except:
-                pass
+            except (AttributeError, TypeError, ValueError, RuntimeError):
+                pass # Read-only or incompatible attribute
         for src_input in node.inputs:
             dst_input = self.get_socket(new_node.inputs, src_input.identifier)
             if dst_input is not None:
@@ -364,61 +380,49 @@ class Baker(Operator):
             bake_settings.use_pass_indirect        = map.bake_indirect
             bake_settings.use_pass_color           = map.bake_color
         
-        m_type = map.type
-        if m_type == 'Albedo':
-            bake_type = 'EMIT'
-        if m_type == 'Combined':
-            bake_type = 'COMBINED'
-        if m_type == 'AO':
-            bake_type = 'AO'
-        if m_type == 'Displacement':
-            bake_type = 'EMIT'
-        if m_type == 'Shadow':
-            bake_type = 'SHADOW'
-        if m_type == 'Normal':
-            bake_type = 'NORMAL'
-        if m_type == 'UV':
-            bake_type = 'UV'
-        if m_type == 'Roughness':
-            bake_type = 'ROUGHNESS'
-        if m_type == 'Emission':
-            bake_type = 'EMIT'
-        if m_type == 'Environment':
-            bake_type = 'ENVIRONMENT'
-        if m_type == 'Diffuse':
-            bake_type = 'DIFFUSE'
-        if m_type == 'Glossy':
-            bake_type = 'GLOSSY'
-        if m_type == 'Subsurface':
-            bake_type = 'Transmission'
-        if m_type == 'CustomPass':
-            bake_type = 'EMIT'
-        return bake_type
+        return self.BAKE_TYPES[map.type]
     
     def calc_surf_area(self, obj):
         import bmesh
         bm = bmesh.new(use_operators=False)
         bm.from_mesh(obj.data)
         bm.transform(obj.matrix_world)
-        bm.faces.ensure_lookup_table()
-        
-        area = 0.0
-        for face in bm.faces:
-            area += face.calc_area()
+        area = sum(face.calc_area() for face in bm.faces)
+        bm.free()
         return area
     
     def round_to_power_of_2(self, num):
         return pow(2,round(log2(num)))
     
     def apply_transparent_background(self, bake_image):
-        pixels = list(bake_image.pixels)
-        for i in range(0, len(pixels), 4):
-            r, g, b, a = pixels[i:i+4]
-            if r == 0.0 and g == 0.0 and b == 0.0:
-                pixels[i+3] = 0.0
+        pixels = np.empty(len(bake_image.pixels), dtype=np.float32)
+        bake_image.pixels.foreach_get(pixels)
+        rgba = pixels.reshape(-1, 4)
+        rgba[np.all(rgba[:, :3] == 0.0, axis=1), 3] = 0.0
         bake_image.pixels.foreach_set(pixels)
         bake_image.alpha_mode = 'STRAIGHT'
 
+    def create_image(self, map, image_name):
+        bake_image = bpy.data.images.new(
+            name = image_name,
+            width  = map.target_width  * map.final_aa,
+            height = map.target_height * map.final_aa
+        )
+        bake_image.use_generated_float = map.float_depth
+        # Fall back to alternative color space names used by some OCIO configs
+        fallback_names = {'sRGB': 'sRGB EOTF', 'Non-Color': 'Non-Colour Data'}
+        for cs_name in (map.color_space, fallback_names.get(map.color_space)):
+            if cs_name is None:
+                continue
+            try:
+                bake_image.colorspace_settings.name = cs_name
+                break
+            except TypeError:
+                pass
+        else:
+            self.report(type = {'WARNING'}, message = "Couldn't change color space of image")
+        return bake_image
+    
     def PrepareImage(self, context, map, objects, name):
         props = context.scene.BakeLabProps
         self.SetSaveImageSettings(context, map)
@@ -428,11 +432,12 @@ class Baker(Operator):
             map.target_height = map.height
         elif props.image_size == 'ADAPTIVE':
             area = 0
-            for obj in objs:
+            for obj in objects:
                 area += self.calc_surf_area(obj)
-            size = pow(area, 0.5) * props.texel_per_unit
+            size = max(pow(area, 0.5) * props.texel_per_unit, 1)
             if props.round_adaptive_image:
                 size = self.round_to_power_of_2(size)
+            size = int(min(max(size, props.image_min_size), props.image_max_size))
             map.target_width  = size
             map.target_height = size
             
@@ -442,47 +447,13 @@ class Baker(Operator):
 
         image_name = map.img_name.replace('*', name)
 
-        if map.clear_img:
-            bake_image = bpy.data.images.get(image_name)
-            if bake_image is not None:
-                bpy.data.images.remove(bake_image)
-            self.report(type = {'INFO'}, message = "Creating new image for clear bake.")
-            bake_image = bpy.data.images.new(
-                name = image_name,
-                width  = map.target_width  * map.final_aa,
-                height = map.target_height * map.final_aa
-            )
-            bake_image.use_generated_float = map.float_depth
-            try:
-                bake_image.colorspace_settings.name = map.color_space
-            except:
-                try:
-                    if map.color_space == 'sRGB':
-                        bake_image.colorspace_settings.name = 'sRGB EOTF'
-                    elif map.color_space == 'Non-Color':
-                        bake_image.colorspace_settings.name = 'Non-Colour Data'
-                except:
-                    self.report(type = {'WARNING'}, message = "Couldn't change color space of image")
-        else:
-            bake_image = bpy.data.images.get(image_name)
-            if bake_image is None:
-                self.report(type = {'INFO'}, message = "Image " + image_name + " does not exist. Creating new image.")
-                bake_image = bpy.data.images.new(
-                    name = image_name,
-                    width  = map.target_width  * map.final_aa,
-                    height = map.target_height * map.final_aa
-                )
-                bake_image.use_generated_float = map.float_depth
-                try:
-                    bake_image.colorspace_settings.name = map.color_space
-                except:
-                    try:
-                        if map.color_space == 'sRGB':
-                            bake_image.colorspace_settings.name = 'sRGB EOTF'
-                        elif map.color_space == 'Non-Color':
-                            bake_image.colorspace_settings.name = 'Non-Colour Data'
-                    except:
-                        self.report(type = {'WARNING'}, message = "Couldn't change color space of image")
+        bake_image = bpy.data.images.get(image_name)
+        if map.clear_img and bake_image is not None:
+            bpy.data.images.remove(bake_image)
+            bake_image = None
+        if bake_image is None:
+            self.report(type = {'INFO'}, message = "Creating new image " + image_name)
+            bake_image = self.create_image(map, image_name)
         
         context.scene.render.bake.margin = props.bake_margin * map.final_aa
         if props.save_or_pack == 'PACK':
@@ -675,7 +646,7 @@ class Baker(Operator):
         scene.cycles.preview_pause = True
         scene.render.bake.use_cage = True
         scene.render.bake.cage_extrusion = props.cage_extrusion
-        scene.render.bake.max_ray_distance = props.cage_extrusion
+        scene.render.bake.max_ray_distance = props.max_ray_distance
         scene.render.bake.cage_object = None
         
         
@@ -767,7 +738,7 @@ class Baker(Operator):
                 render.bake.use_selected_to_active = True
                 render.bake.use_cage = True
                 render.bake.cage_extrusion = props.cage_extrusion
-                render.bake.max_ray_distance = props.cage_extrusion
+                render.bake.max_ray_distance = props.max_ray_distance
 
                 merged_object = self.create_merged_object(context, selected_objects)
                 SelectObjects(merged_object, selected_objects)
@@ -790,7 +761,7 @@ class Baker(Operator):
                     bake_type = self.init_bake_settings(context, map)
                     render.bake.use_clear = map.clear_img
 
-                    self.UpdateDisplayStatus(props,obj,map,bake_image)
+                    self.UpdateDisplayStatus(props, merged_object, map, bake_image)
                     
                     # Bake {
                     while bpy.ops.object.bake('INVOKE_DEFAULT', type = bake_type) != {'RUNNING_MODAL'}:
@@ -811,13 +782,14 @@ class Baker(Operator):
                         bake_image.save_render(bake_image.filepath)
                 else:
                     bake_image = self.PrepareImage(context, map, selected_objects, props.global_image_name)
-                    for obj in selected_objects:
+                    for i, obj in enumerate(selected_objects):
                         SelectObject(obj)
                         self.ReserveMaterials(obj)
 
                         self.PrepareMaterials(context, obj, {obj}, map, bake_image)
                         bake_type = self.init_bake_settings(context, map)
-                        render.bake.use_clear = map.clear_img
+                        # Only clear on the first object, otherwise each bake wipes the previous ones
+                        render.bake.use_clear = map.clear_img and i == 0
 
                         self.UpdateDisplayStatus(props, obj, map, bake_image)
                         
@@ -828,15 +800,16 @@ class Baker(Operator):
                             yield 1
                         # }
 
-                        if map.clear_img:
-                            self.apply_transparent_background(bake_image)
-
+                        # Also resets is_dirty, which the next object's bake wait relies on
                         if props.save_or_pack == 'PACK':
                             bake_image.pack()
                         else:
                             bake_image.save_render(bake_image.filepath)
                         
                         self.RestoreMaterials()
+
+                    if map.clear_img:
+                        self.apply_transparent_background(bake_image)
 
                     self.down_scale(bake_image, props, map)
                     if props.save_or_pack == 'PACK':
@@ -867,6 +840,7 @@ class Baker(Operator):
             render.bake.use_selected_to_active = True
             render.bake.use_cage = True
             render.bake.cage_extrusion = props.cage_extrusion
+            render.bake.max_ray_distance = props.max_ray_distance
             
              # Save baking data {
             baked_data = scene.BakeLab_Data.add()
@@ -897,7 +871,7 @@ class Baker(Operator):
                 bake_type = self.init_bake_settings(context, map)
                 render.bake.use_clear = map.clear_img
 
-                self.UpdateDisplayStatus(props,obj,map,bake_image)
+                self.UpdateDisplayStatus(props, active_object, map, bake_image)
                 
                 # Bake {
                 while bpy.ops.object.bake('INVOKE_DEFAULT', type = bake_type) != {'RUNNING_MODAL'}:
