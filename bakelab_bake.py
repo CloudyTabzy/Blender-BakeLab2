@@ -179,12 +179,9 @@ class Baker(Operator):
             emit.inputs[0].default_value = 0, 0, 0, 0
             links.new(emit.outputs[0], src_socket)
             ####### Find Pass Input Socket{
-            pass_input = None
-            for Pass in passes:
-                for tmp_input in node.inputs:
-                    if tmp_input.name.casefold() == Pass:
-                        pass_input = tmp_input
-                        break
+            # Names are in priority order, so the first one the node has wins
+            pass_input = next((tmp_input for Pass in passes for tmp_input in node.inputs
+                               if tmp_input.name.casefold() == Pass), None)
             ####### }
             if pass_input:
                 if len(pass_input.links):
@@ -593,7 +590,6 @@ class Baker(Operator):
                 if mat in converted:
                     continue
                 converted.add(mat)
-                mat.use_nodes = True
                 
                 if map.type == 'CustomPass':
                     if map.deep_search:
@@ -617,7 +613,6 @@ class Baker(Operator):
             if slot.material is None:
                 slot.material = self.GetEmptyMaterial()
             mat = slot.material
-            mat.use_nodes = True
             if self.TMP_IMAGE_NODE_NAME in mat.node_tree.nodes:
                 img_node = mat.node_tree.nodes[self.TMP_IMAGE_NODE_NAME]
             else:
@@ -630,7 +625,6 @@ class Baker(Operator):
             
     def GetEmptyMaterial(self):
         mat = bpy.data.materials.new(self.TMP_EMPTY_MAT_NAME)
-        mat.use_nodes = True
         img_node = mat.node_tree.nodes.new(type = 'ShaderNodeTexImage')
         img_node.name = self.TMP_IMAGE_NODE_NAME
         return mat
@@ -734,6 +728,10 @@ class Baker(Operator):
     def remove_merged_object(self):
         if self.merged_object is None:
             return
+        # Its placeholder materials aren't reserved, so they're never restored and removed
+        for slot in self.merged_object.material_slots:
+            if slot.material is not None and slot.material.name.startswith(self.TMP_EMPTY_MAT_NAME):
+                bpy.data.materials.remove(slot.material)
         merged_data = self.merged_object.data
         bpy.data.objects.remove(self.merged_object)
         bpy.data.meshes.remove(merged_data)

@@ -1,17 +1,20 @@
 schema_version = "1.0.0"
 
 id = "blender_bakelab"
-version = "2.0.1"
+version = "2.1.0"
 name = "BakeLab"
-tagline = "Bake textures easily with automated material setup and image generation"
+tagline = "Bake textures with automatic image and material setup"
 maintainer = "Tabzy"
 type = "add-on"
 
 website = "https://github.com/CloudyTabzy/Blender-BakeLab2"
 
-tags = ["Baking", "Material", "Texture"]
+tags = ["Bake", "Material", "Render"]
 
 blender_version_min = "5.0.0"
+
+# Save mode writes the baked images to disk
+permissions = { files = "Save baked textures to disk" }
 
 license = [
   "SPDX:GPL-3.0-or-later",
@@ -19,4 +22,15 @@ license = [
 
 copyright = [
   "2024 Tabzy",
+]
+
+[build]
+# Blender's defaults, plus repo-only files the add-on doesn't use
+paths_exclude_pattern = [
+  "__pycache__/",
+  "/.git/",
+  "/*.zip",
+  "/.gitignore",
+  "/*.png",
+  "/TESTING.md",
 ]

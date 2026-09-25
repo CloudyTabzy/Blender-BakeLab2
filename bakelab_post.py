@@ -24,7 +24,6 @@ class BakeLab_GenerateMaterials(Operator):
             
     def generate_mat(self, bakeMapData, name):
         new_mat = bpy.data.materials.new(name+'_BAKED')
-        new_mat.use_nodes = True
         if self.add_nodes(bakeMapData, new_mat):
             return new_mat
         else:
@@ -154,12 +153,9 @@ class BakeLab_GenerateMaterials(Operator):
                 for i in range(len(split_passes)):
                     split_passes[i] = split_passes[i].strip().casefold()
                 
-                pass_input = None
-                for Pass in split_passes:
-                    for tmp_input in pbr.inputs:
-                        if tmp_input.name.casefold() == Pass:
-                            pass_input = tmp_input
-                            break
+                # Names are in priority order, so the first one the node has wins
+                pass_input = next((tmp_input for Pass in split_passes for tmp_input in pbr.inputs
+                                   if tmp_input.name.casefold() == Pass), None)
                 # }
                 if pass_input:
                     if len(pass_input.links) == 0:
@@ -314,7 +310,6 @@ class BakeLab_ApplyAO(Operator):
                     for slot in obj.material_slots:
                         if slot.material == None:
                             slot.material = bpy.data.materials.new(obj.name+'_AO')
-                            slot.material.use_nodes = True
                         if slot.material.users > 1:
                             mat_name = slot.material.name
                             slot.material = slot.material.copy()

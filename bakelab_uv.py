@@ -17,11 +17,6 @@ from .bakelab_tools import (
     IsValidMesh
 )
 
-def SelectObject(obj):
-    bpy.ops.object.select_all(action = 'DESELECT')
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
-    
 class Unwrapper(Operator):
     """Unwrap"""
     bl_idname = "bakelab.unwrap"
@@ -233,8 +228,8 @@ class Unwrapper(Operator):
                 
         ############################################################################
         elif self.unwrap_mode == 'ONLY_ACTIVE':
-            if active_object.type != 'MESH':
-                self.report(type = {'ERROR'}, message = 'Active object is not mesh')
+            if active_object is None or active_object.type != 'MESH':
+                self.report(type = {'ERROR'}, message = 'The active object must be a mesh')
                 SelectObjects(active_object, selected_objects)
                 return {'CANCELLED'}
             
@@ -259,15 +254,16 @@ class Unwrapper(Operator):
             SelectObjects(mesh_objects[0], mesh_objects)
             bpy.ops.object.make_single_user(object=True, obdata=True)
             
-            if self.uvmap_options == 'CREATE_NEW':
-                for obj in mesh_objects:
-                    if self.apply_modifiers:
-                        self.modifier_apply(context, obj)
+            for obj in mesh_objects:
+                if self.apply_modifiers:
+                    self.modifier_apply(context, obj)
+                if self.uvmap_options == 'CREATE_NEW':
                     if self.check_uv_name  and  self.default_uv_name in obj.data.uv_layers:
                         obj.data.uv_layers.active = obj.data.uv_layers[self.default_uv_name]
                     else:
                         obj.data.uv_layers.active = obj.data.uv_layers.new(name = self.default_uv_name)
-            
+
+            SelectObjects(mesh_objects[0], mesh_objects) # Unwrap all of them together
             self.Unwrap(context)
         ############################################################################
         SelectObjects(active_object, selected_objects)
