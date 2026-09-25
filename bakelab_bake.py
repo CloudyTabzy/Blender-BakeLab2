@@ -69,6 +69,13 @@ class Baker(Operator):
         self.default_compression  = img_settings.compression
         self.default_quality      = img_settings.quality
         self.default_exr_codec    = img_settings.exr_codec
+
+        self.default_color_management = img_settings.color_management
+        view_settings = img_settings.view_settings
+        self.default_view_transform = view_settings.view_transform
+        self.default_look           = view_settings.look
+        self.default_exposure       = view_settings.exposure
+        self.default_gamma          = view_settings.gamma
         # }
         
         # Scene settings{
@@ -117,6 +124,13 @@ class Baker(Operator):
         img_settings.compression         = self.default_compression
         img_settings.quality             = self.default_quality
         img_settings.exr_codec           = self.default_exr_codec
+
+        view_settings = img_settings.view_settings
+        view_settings.view_transform     = self.default_view_transform
+        view_settings.look               = self.default_look
+        view_settings.exposure           = self.default_exposure
+        view_settings.gamma              = self.default_gamma
+        img_settings.color_management    = self.default_color_management
         # }
         
         # Scene settings{
@@ -224,12 +238,14 @@ class Baker(Operator):
                 setattr(new_node, member, value)
             except (AttributeError, TypeError, ValueError, RuntimeError):
                 pass # Read-only or incompatible attribute
-        for src_input in node.inputs:
-            dst_input = self.get_socket(new_node.inputs, src_input.identifier)
-            if dst_input is not None:
-                if hasattr(src_input, 'default_value') and \
-                        hasattr(dst_input, 'default_value'):
-                    dst_input.default_value = src_input.default_value
+        # Outputs too, RGB and Value nodes store their value there
+        for src_sockets, dst_sockets in ((node.inputs, new_node.inputs), (node.outputs, new_node.outputs)):
+            for src_socket in src_sockets:
+                dst_socket = self.get_socket(dst_sockets, src_socket.identifier)
+                if dst_socket is not None:
+                    if hasattr(src_socket, 'default_value') and \
+                            hasattr(dst_socket, 'default_value'):
+                        dst_socket.default_value = src_socket.default_value
         return new_node
     
     def find_node(self, nodes, type):
@@ -312,21 +328,26 @@ class Baker(Operator):
     def ungroup_nodes(self, node_tree):
         nodes = node_tree.nodes
         links = node_tree.links
+        skipped = set() # Groups that can't be expanded, left in place
         while True:
             group_exists = False
             ungroup_nodes = [n for n in nodes]
             for node in ungroup_nodes:
-                if node.type != 'GROUP':
+                if node.type != 'GROUP' or node.name in skipped:
                     continue
-                group_exists = True
-                
+                if node.node_tree is None:
+                    skipped.add(node.name)
+                    continue
+
                 node_dict = {}
                 gr_nodes = node.node_tree.nodes
-                gr_in  = self.find_node(gr_nodes, 'GROUP_INPUT')
+                gr_in  = self.find_node(gr_nodes, 'GROUP_INPUT') # May be None, the group then has no inputs
                 gr_out = self.find_node(gr_nodes, 'GROUP_OUTPUT')
-                if gr_in is None: continue
-                if gr_out is None: continue
-                
+                if gr_out is None:
+                    skipped.add(node.name)
+                    continue
+                group_exists = True
+
                 for gr_node in gr_nodes:
                     if gr_node == gr_in:
                         continue
@@ -486,7 +507,15 @@ class Baker(Operator):
     def SetSaveImageSettings(self, context, map):
         img_settings = context.scene.render.image_settings
         img_settings.file_format = map.file_format
-        
+        # save_render applies the scene view transform (AgX by default) to color images,
+        # so write them with Standard to keep the baked values unchanged
+        img_settings.color_management = 'OVERRIDE'
+        view_settings = img_settings.view_settings
+        view_settings.view_transform = 'Standard'
+        view_settings.look     = 'None'
+        view_settings.exposure = 0
+        view_settings.gamma    = 1
+
         if map.file_format == 'PNG':
             img_settings.color_mode  = map.png_channels
             img_settings.color_depth = map.png_depth
@@ -510,15 +539,19 @@ class Baker(Operator):
         if len(obj.material_slots) == 0:
             bpy.ops.object.material_slot_add()
         for slot in obj.material_slots:
+            # Objects sharing a mesh share its slots, which were already reserved
+            if slot.material is not None and slot.material in self.material_copies:
+                continue
             self.object_slots.append(slot)
             self.original_materials.append(slot.material)
             if slot.material is not None:
                 slot.material = slot.material.copy()
-        
+                self.material_copies.add(slot.material)
+
         SelectObjects(active_object,selected_objects)
-        
+
         return (self.object_slots, self.original_materials)
-    
+
     def RestoreMaterials(self):
         for i in range(0, min(len(self.object_slots), len(self.original_materials))):
             if self.object_slots[i] is not None:
@@ -527,11 +560,13 @@ class Baker(Operator):
                 self.object_slots[i].material = self.original_materials[i]
         self.object_slots.clear()
         self.original_materials.clear()
+        self.material_copies.clear()
     
     def PrepareMaterials(self, context, dst_obj, src_obj_list, map, bake_image):
         active_obj = context.active_object
         selected_objects = context.selected_objects
         
+        converted = set() # Objects sharing a mesh share materials, convert each only once
         for obj in src_obj_list:
             SelectObject(obj)
             if len(obj.material_slots) == 0:
@@ -540,6 +575,9 @@ class Baker(Operator):
                 if slot.material is None:
                     slot.material = self.GetEmptyMaterial()
                 mat = slot.material
+                if mat in converted:
+                    continue
+                converted.add(mat)
                 mat.use_nodes = True
                 
                 if map.type == 'CustomPass':
@@ -612,6 +650,14 @@ class Baker(Operator):
         
         while len(merged_obj.material_slots)>0:
             bpy.ops.object.material_slot_remove()
+
+        # Joining into the empty mesh copies the UV maps but leaves none active
+        uv_layers = merged_mesh.uv_layers
+        if len(uv_layers) and uv_layers.active is None:
+            src_uv = object_list[0].data.uv_layers.active
+            uv_layer = uv_layers.get(src_uv.name) if src_uv else None
+            uv_layers.active = uv_layer or uv_layers[0]
+            uv_layers.active.active_render = True
         merged_mesh.update()
         return merged_obj
     
@@ -630,16 +676,57 @@ class Baker(Operator):
         props.baking_map_size = str(map.target_width) + 'x' + str(map.target_height)
         if map.final_aa != 1:
             props.baking_map_size += str(' (' + str(map.final_aa)+'X)')
-    
+
+    def run_bake(self, bake_type, bake_image):
+        """Start a bake job and wait for it to end. Returns True if it baked into the image."""
+        while bpy.app.is_job_running('OBJECT_BAKE'):
+            yield 1
+        self.bake_result = None
+        was_dirty = bake_image.is_dirty
+        if bpy.ops.object.bake('INVOKE_DEFAULT', type = bake_type) != {'RUNNING_MODAL'}:
+            self.report(type = {'ERROR'}, message = 'Bake could not start, see the Info editor for the reason')
+            return False
+        while self.bake_result is None:
+            yield 1
+        # Errors inside the bake job are still reported as complete, but leave the image untouched
+        if self.bake_result != 'COMPLETE' or not (was_dirty or bake_image.is_dirty):
+            self.report(type = {'ERROR'}, message = 'Bake was cancelled or failed, see the Info editor for the reason')
+            return False
+        return True
+
+    def on_bake_complete(self, *args):
+        self.bake_result = 'COMPLETE'
+
+    def on_bake_cancel(self, *args):
+        self.bake_result = 'CANCEL'
+
+    def store_image(self, bake_image, props):
+        if props.save_or_pack == 'PACK':
+            bake_image.pack()
+            return
+        bake_image.save_render(bake_image.filepath)
+        # Generated images are regenerated blank when the .blend is reopened,
+        # so switch it to the file that was just saved
+        if bake_image.source == 'GENERATED':
+            color_space = bake_image.colorspace_settings.name
+            bake_image.source = 'FILE'
+            bake_image.reload()
+            bake_image.colorspace_settings.name = color_space
+
+    def remove_merged_object(self):
+        if self.merged_object is None:
+            return
+        merged_data = self.merged_object.data
+        bpy.data.objects.remove(self.merged_object)
+        bpy.data.meshes.remove(merged_data)
+        self.merged_object = None
+
     def Bake(self, context):
         yield 1
         scene = context.scene
         render = scene.render
         props = scene.BakeLabProps
-        self.original_materials = []
-        self.object_slots = []
-        self.save_defaults(context)
-        
+
         props.bake_state = 'BAKING'
         scene.render.engine = 'CYCLES'
         scene.cycles.device = props.compute_device
@@ -700,23 +787,16 @@ class Baker(Operator):
                     render.bake.use_clear = map.clear_img
 
                     self.UpdateDisplayStatus(props,obj,map,bake_image)
-                    
-                    # Bake {
-                    while bpy.ops.object.bake('INVOKE_DEFAULT', type = bake_type) != {'RUNNING_MODAL'}:
-                        yield 1
-                    while not bake_image.is_dirty:
-                        yield 1
-                    # }
+
+                    if not (yield from self.run_bake(bake_type, bake_image)):
+                        yield -1
 
                     if map.clear_img:
                         self.apply_transparent_background(bake_image)
 
                     self.down_scale(bake_image, props, map)
-                    if props.save_or_pack == 'PACK':
-                        bake_image.pack()
-                    else:
-                        bake_image.save_render(bake_image.filepath)
-                    
+                    self.store_image(bake_image, props)
+
                     baked_data.AddMap(map, bake_image) # Save baking data
                     self.RestoreMaterials()
         ##########################################################################################
@@ -740,7 +820,8 @@ class Baker(Operator):
                 render.bake.cage_extrusion = props.cage_extrusion
                 render.bake.max_ray_distance = props.max_ray_distance
 
-                merged_object = self.create_merged_object(context, selected_objects)
+                self.merged_object = self.create_merged_object(context, selected_objects)
+                merged_object = self.merged_object
                 SelectObjects(merged_object, selected_objects)
             else:
                 render.bake.use_selected_to_active = False
@@ -762,13 +843,9 @@ class Baker(Operator):
                     render.bake.use_clear = map.clear_img
 
                     self.UpdateDisplayStatus(props, merged_object, map, bake_image)
-                    
-                    # Bake {
-                    while bpy.ops.object.bake('INVOKE_DEFAULT', type = bake_type) != {'RUNNING_MODAL'}:
-                        yield 1
-                    while not bake_image.is_dirty:
-                        yield 1
-                    # }
+
+                    if not (yield from self.run_bake(bake_type, bake_image)):
+                        yield -1
 
                     if map.clear_img:
                         self.apply_transparent_background(bake_image)
@@ -776,10 +853,7 @@ class Baker(Operator):
                     self.RestoreMaterials()
 
                     self.down_scale(bake_image, props, map)
-                    if props.save_or_pack == 'PACK':
-                        bake_image.pack()
-                    else:
-                        bake_image.save_render(bake_image.filepath)
+                    self.store_image(bake_image, props)
                 else:
                     bake_image = self.PrepareImage(context, map, selected_objects, props.global_image_name)
                     for i, obj in enumerate(selected_objects):
@@ -792,39 +866,23 @@ class Baker(Operator):
                         render.bake.use_clear = map.clear_img and i == 0
 
                         self.UpdateDisplayStatus(props, obj, map, bake_image)
-                        
-                        # Bake {
-                        while bpy.ops.object.bake('INVOKE_DEFAULT', type = bake_type) != {'RUNNING_MODAL'}:
-                            yield 1
-                        while not bake_image.is_dirty:
-                            yield 1
-                        # }
 
-                        # Also resets is_dirty, which the next object's bake wait relies on
-                        if props.save_or_pack == 'PACK':
-                            bake_image.pack()
-                        else:
-                            bake_image.save_render(bake_image.filepath)
-                        
+                        if not (yield from self.run_bake(bake_type, bake_image)):
+                            yield -1
+
                         self.RestoreMaterials()
 
                     if map.clear_img:
                         self.apply_transparent_background(bake_image)
 
                     self.down_scale(bake_image, props, map)
-                    if props.save_or_pack == 'PACK':
-                        bake_image.pack()
-                    else:
-                        bake_image.save_render(bake_image.filepath)
+                    self.store_image(bake_image, props)
 
                     render.bake.use_clear = False
 
                 baked_data.AddMap(map, bake_image) # Save baking data
 
-            if props.pre_join_mesh:
-                merged_data = merged_object.data
-                bpy.data.objects.remove(merged_object)
-                bpy.data.meshes.remove(merged_data)
+            self.remove_merged_object()
         ##########################################################################################
         elif props.bake_mode == "TO_ACTIVE":
             if len(selected_objects) < 2:
@@ -872,23 +930,16 @@ class Baker(Operator):
                 render.bake.use_clear = map.clear_img
 
                 self.UpdateDisplayStatus(props, active_object, map, bake_image)
-                
-                # Bake {
-                while bpy.ops.object.bake('INVOKE_DEFAULT', type = bake_type) != {'RUNNING_MODAL'}:
-                    yield 1
-                while not bake_image.is_dirty:
-                    yield 1
-                # }
+
+                if not (yield from self.run_bake(bake_type, bake_image)):
+                    yield -1
 
                 if map.clear_img:
                     self.apply_transparent_background(bake_image)
 
                 self.down_scale(bake_image, props, map)
-                if props.save_or_pack == 'PACK':
-                    bake_image.pack()
-                else:
-                    bake_image.save_render(bake_image.filepath)
-                
+                self.store_image(bake_image, props)
+
                 baked_data.AddMap(map, bake_image) # Save baking data
                 self.RestoreMaterials()
         ##########################################################################################
@@ -897,12 +948,16 @@ class Baker(Operator):
         
     
     def modal(self, context, event):
-        if event.type in {'RIGHTMOUSE', 'ESC'}:
-            self.cancel(context)
-            return {'CANCELLED'}
+        # Esc during a bake is handled by the bake job itself, which then reports a cancel
+        if event.type == 'ESC' and event.value == 'PRESS':
+            self.cancel_requested = True
 
         if event.type == 'TIMER':
-            if context.scene.BakeLabProps.bake_state == 'BAKING':
+            if self.cancel_requested and not bpy.app.is_job_running('OBJECT_BAKE'):
+                self.report(type = {'WARNING'}, message = 'Bake cancelled')
+                self.cancel(context)
+                return {'CANCELLED'}
+            if context.scene.BakeLabProps.bake_state == 'BAKING' and context.area:
                 context.area.tag_redraw() # Update UI
             result = next(self.BakeCrt)
             if result == -1:
@@ -913,20 +968,41 @@ class Baker(Operator):
                 return {'FINISHED'}
 
         return {'RUNNING_MODAL'}
-        
+
     def cancel(self, context):
+        # Undo what an interrupted bake left behind
+        if self.object_slots:
+            self.RestoreMaterials()
+        self.remove_merged_object()
         context.scene.BakeLabProps.bake_state = 'NONE'
         self.finish(context)
-            
+
     def finish(self, context):
         self.restore_defaults(context)
-        if self.BakeCrt.gi_running:
-            self.BakeCrt.close()
+        self.BakeCrt.close()
+        for handlers, handler in self._bake_handlers:
+            if handler in handlers:
+                handlers.remove(handler)
         wm = context.window_manager
         if self._timer:
             wm.event_timer_remove(self._timer)
 
     def execute(self, context):
+        self.original_materials = []
+        self.object_slots = []
+        self.material_copies = set()
+        self.merged_object = None
+        self.cancel_requested = False
+        self.bake_result = None
+        self.save_defaults(context)
+
+        self._bake_handlers = (
+            (bpy.app.handlers.object_bake_complete, self.on_bake_complete),
+            (bpy.app.handlers.object_bake_cancel,   self.on_bake_cancel),
+        )
+        for handlers, handler in self._bake_handlers:
+            handlers.append(handler)
+
         self.BakeCrt = self.Bake(context)
         wm = context.window_manager
         self._timer = wm.event_timer_add(0.5, window=context.window)

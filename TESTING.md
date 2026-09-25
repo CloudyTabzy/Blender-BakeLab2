@@ -43,8 +43,9 @@ Add each map type, bake the cube, and check that an image is produced and looks 
 
 - [ ] **Individual**: cube + sphere selected, Albedo map. Result: one image per object, named after it.
 - [ ] **All To One** (Pre-Join off): cube + sphere, Albedo, *Clear image* **on**. Result: one `Atlas` image containing **both** objects *(regression: only the last object used to survive)*.
-- [ ] **All To One** (Pre-Join on): same as above. The status display names the merged object while baking, and the temporary merged object is removed afterwards.
+- [ ] **All To One** (Pre-Join on): same as above. The bake succeeds *(regression: used to fail with "No active UV layer found" on the merged object)*, the status display names the merged object while baking, and the temporary merged object is removed afterwards.
 - [ ] **Selected to Active**: high-poly + low-poly cube, Normal map. Detail transfers, and the status display names the **active** object *(regression)*.
+- [ ] **Shared meshes**: in Selected to Active (and All To One with Pre-Join), make the source a linked duplicate pair (*Alt+D*) sharing a material. After the bake, the original material still exists and is still assigned, with no `.001` copies left *(regression: the original material used to be deleted)*.
 - [ ] **Max Ray Distance**: in Selected to Active, set it to a small non-zero value and confirm it's applied (*Render Properties > Bake > Selected to Active*). It's independent of Cage Extrusion *(regression: it used to copy the cage extrusion value)*. After the bake finishes, the scene's original bake settings are restored.
 
 ## 4. Image sizing
@@ -57,28 +58,36 @@ Add each map type, bake the cube, and check that an image is produced and looks 
   - [ ] Texels Per Unit = 0 doesn't crash (the size clamps to Min Size).
 - [ ] **Anti-aliasing** = 2: the bake runs at 2x size, and the final image is downscaled back to the target size.
 
-## 5. Clear image / transparency
+## 5. Materials
+
+- [ ] **Node groups**: Albedo bake of a material whose Base Color comes from a node group that has **no Group Input** node (e.g. an RGB node inside a group). The bake finishes with the right color *(regression: Blender used to freeze, and grouped RGB/Value nodes baked as grey)*.
+
+## 6. Clear image / transparency
 
 - [ ] *Clear image* on: background pixels (pure black) get alpha 0, and the baked area stays opaque.
 - [ ] 2048x2048 with AA 2 and *Clear image* on: the transparency pass finishes in about a second, not minutes *(regression: it used to be a pure-Python per-pixel loop)*.
 - [ ] *Clear image* off with an existing image of the same name: the existing image is reused, not recreated.
 
-## 6. Output
+## 7. Output
 
 - [ ] **Pack**: images are packed into the .blend.
 - [ ] **Save**, PNG / JPEG / OpenEXR: files are written to the chosen folder, and *Create folder* makes the per-object folder (Individual) or the *Folder name* folder (All To One).
 - [ ] The color space is set correctly (sRGB for Albedo, Non-Color for Normal/Roughness).
+- [ ] **Saved colors are exact**: with the scene view transform on AgX (the default), save an Albedo of a pure red material as PNG. The file is pure red, not (0.86, 0.22, 0.13) *(regression: the view transform used to be written into the file)*.
+- [ ] **Saved images survive reopening**: bake in Save mode, *Generate Materials*, save the .blend and reopen it. The textures still show the baked result, not black *(regression)*.
 - [ ] After the bake, the render settings (file format, color depth, engine, device, samples) are restored to what they were before.
 
-## 7. Post-bake actions
+## 8. Post-bake actions
 
 - [ ] *Generate Materials* creates materials using the baked images.
 - [ ] *Apply AO* / *Apply Displacement* work when those maps were baked.
 - [ ] *Finish* returns the panel to its initial state.
 
-## 8. Cancel / errors
+## 9. Cancel / errors
 
-- [ ] Pressing **Esc** during a bake cancels it cleanly and restores the original settings and materials.
+- [ ] Pressing **Esc** during a bake cancels it cleanly: original settings and materials are restored, and in Pre-Join mode the merged object is removed.
+- [ ] Right-clicking during a bake does **not** cancel it.
+- [ ] **A bake Blender rejects stops**: disable *Renders* for the object (*Object Properties > Visibility*) and bake. BakeLab reports an error, returns to the Bake button and restores the materials *(regression: it used to retry forever)*.
 - [ ] Bake with nothing selected: error "Select some objects", no traceback.
 - [ ] Bake an object without UVs: error "Not all objects have UV maps", no traceback.
 - [ ] Bake with no maps added: error "Add bake maps", no traceback.
