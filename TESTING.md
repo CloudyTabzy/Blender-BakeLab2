@@ -68,6 +68,8 @@ Add each map type, bake the cube, and check that an image is produced and looks 
 ## 6. Clear image / transparency
 
 - [ ] *Clear image* on: background pixels (pure black) get alpha 0, and the baked area stays opaque.
+- [ ] **Transparency survives export**: with *Clear image* on, open the result in an external image editor. In **Save** mode (PNG, even with the channels set to RGB) the file is RGBA with a transparent background. In **Pack** mode, *Image > Save As* also writes RGBA with a transparent background *(regression: both used to write RGB and lose the alpha)*.
+- [ ] *Clear image* on with **JPEG**: the panel warns that JPEG can't store transparency, and baking reports a warning.
 - [ ] 2048x2048 with AA 2 and *Clear image* on: the transparency pass finishes in about a second, not minutes *(regression: it used to be a pure-Python per-pixel loop)*.
 - [ ] *Clear image* off with an existing image of the same name: the existing image is reused, not recreated, and resized to the map's size (times anti-aliasing while baking) *(regression: it kept its old size)*.
 

@@ -427,7 +427,9 @@ class Baker(Operator):
         bake_image = bpy.data.images.new(
             name = image_name,
             width  = map.target_width  * map.final_aa,
-            height = map.target_height * map.final_aa
+            height = map.target_height * map.final_aa,
+            # Without an alpha channel, packing and Save As drop the transparent background
+            alpha = map.clear_img
         )
         bake_image.use_generated_float = map.float_depth
         # Fall back to alternative color space names used by some OCIO configs
@@ -536,7 +538,14 @@ class Baker(Operator):
                 img_settings.exr_codec    = map.exr_codec_32
             if map.exr_depth == '16':
                 img_settings.exr_codec    = map.exr_codec_16
-    
+
+        # Clear image makes the background transparent, which needs an alpha channel in the file
+        if map.clear_img:
+            if map.file_format in {'PNG', 'OPEN_EXR'}:
+                img_settings.color_mode = 'RGBA'
+            elif context.scene.BakeLabProps.save_or_pack == 'SAVE':
+                self.report(type = {'WARNING'}, message = "JPEG has no alpha channel, the transparent background won't be saved")
+
     def ReserveMaterials(self, obj):
         selected_objects = bpy.context.selected_objects
         active_object    = bpy.context.active_object
