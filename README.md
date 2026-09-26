@@ -1,7 +1,8 @@
 # Blender-BakeLab2
 ![Thumbnail](bakelab_thumbnail_text_logo_small.png)
 BakeLab - A blender addon for baking images.<br>
-Compatible with Blender 4.2 LTS through 5.2 from a single build.
+Compatible with Blender 4.2 LTS through 5.2 from a single build.<br>
+Current release: **3.0.0** (tag `v3`).
 
 **Fork:** https://github.com/CloudyTabzy/Blender-BakeLab2
 
@@ -31,7 +32,7 @@ Main Features:
 
 ### Building the zip
 
-From the repository folder, run:
+From the repository folder (or a checkout of the release tag `v3`), run:
 
 ```
 blender --command extension build
