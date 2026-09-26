@@ -15,6 +15,7 @@ from .bakelab_tools import (
     SelectObject,
     SelectObjects
 )
+from . import bakelab_compat as compat
 
 class BakeLab_GenerateMaterials(Operator):
     """Generate materials based on baked datas"""
@@ -24,6 +25,7 @@ class BakeLab_GenerateMaterials(Operator):
             
     def generate_mat(self, bakeMapData, name):
         new_mat = bpy.data.materials.new(name+'_BAKED')
+        compat.enable_nodes(new_mat)
         if self.add_nodes(bakeMapData, new_mat):
             return new_mat
         else:
@@ -71,8 +73,9 @@ class BakeLab_GenerateMaterials(Operator):
                 EmitNode.location = -400, 300
                 EmitNode.width = pbr.width
                 EmitNode.hide = True
-                links.new(imgNode.outputs['Color'], EmitNode.inputs[0])
-                links.new(EmitNode.outputs[0], out.inputs['Surface'])
+                links.new(imgNode.outputs['Color'], compat.input_socket(EmitNode, 'Color', 0))
+                links.new(compat.output_socket(EmitNode, 'Emission', 0),
+                          compat.input_socket(out, 'Surface', 0))
                 links.new(uvm.outputs['UV'], imgNode.inputs['Vector'])
                 pass_available = True
             if bake_map.type == 'Normal':
@@ -103,15 +106,20 @@ class BakeLab_GenerateMaterials(Operator):
                 ao_dark.location = -400, 100
                 ao_dark.width = pbr.width
                 ao_dark.hide = True
-                ao_dark.inputs[0].default_value = 0,0,0,0
-                ao_dark.inputs[1].default_value = 0
+                compat.input_socket(ao_dark, 'Color', 0).default_value = 0,0,0,0
+                compat.input_socket(ao_dark, 'Strength', 1).default_value = 0
                 
                 links.new(uvm.outputs['UV'],imgNode.inputs['Vector'])
-                links.new(imgNode.outputs['Color'], reroute.inputs[0])
-                links.new(reroute.outputs[0], ao_mix.inputs[0])
-                links.new(ao_dark.outputs[0], ao_mix.inputs[1])
-                links.new(pbr.outputs['BSDF'],     ao_mix.inputs[2])
-                links.new(ao_mix.outputs[0],     out.inputs['Surface'])
+                links.new(imgNode.outputs['Color'], compat.input_socket(reroute, 'Input', 0))
+                links.new(compat.output_socket(reroute, 'Output', 0),
+                          compat.input_socket(ao_mix, 'Fac', 0))
+                # Mix Shader has two inputs named 'Shader'; the index picks them
+                links.new(compat.output_socket(ao_dark, 'Emission', 0),
+                          compat.input_socket(ao_mix, 'Shader', 1))
+                links.new(pbr.outputs['BSDF'],
+                          compat.input_socket(ao_mix, 'Shader', 2))
+                links.new(compat.output_socket(ao_mix, 'Shader', 0),
+                          compat.input_socket(out, 'Surface', 0))
                 pass_available = True
             if bake_map.type == 'Glossy':
                 imgNode = nodes.new(type = 'ShaderNodeTexImage')
@@ -153,9 +161,9 @@ class BakeLab_GenerateMaterials(Operator):
                 for i in range(len(split_passes)):
                     split_passes[i] = split_passes[i].strip().casefold()
                 
-                # Names are in priority order, so the first one the node has wins
-                pass_input = next((tmp_input for Pass in split_passes for tmp_input in pbr.inputs
-                                   if tmp_input.name.casefold() == Pass), None)
+                # Names are in priority order, so the first one the node has wins;
+                # sockets also answer to their identifier (display name may differ)
+                pass_input = compat.find_socket_by_alias(pbr, split_passes)
                 # }
                 if pass_input:
                     if len(pass_input.links) == 0:
@@ -210,8 +218,9 @@ class BakeLab_GenerateMaterials(Operator):
                 SelectObject(obj)
                 if props.make_single_user:
                     bpy.ops.object.make_single_user(object=True, obdata=True)
-                if obj.data.uv_layers.active is not None:
-                    obj.data.uv_layers.active.active_render = True
+                uv_layer = obj.data.uv_layers.get(objData.uv_layer) if objData.uv_layer else obj.data.uv_layers.active
+                if uv_layer is not None:
+                    uv_layer.active_render = True
                 for slot in obj.material_slots:
                     slot.material = mat
         SelectObjects(active_obj, selected_objects)
@@ -228,12 +237,12 @@ class BakeLab_ApplyAO(Operator):
     bl_label = "Apply AO"
     bl_options = {'REGISTER','UNDO'}
         
-    def add_ao(self, bake_image, mat):
+    def add_ao(self, bake_image, mat, uv_layer=''):
         nodes = mat.node_tree.nodes
         links = mat.node_tree.links
         out = None
         for node in nodes:
-            if node.type == 'OUTPUT_MATERIAL':
+            if node.type == 'OUTPUT_MATERIAL' and node.is_active_output:
                 out = node
                 break
         if out == None:
@@ -243,10 +252,12 @@ class BakeLab_ApplyAO(Operator):
             return
         if len(out.inputs['Surface'].links) == 0:
             return
-        bsdf = out.inputs['Surface'].links[0].from_node
+        source_socket = out.inputs['Surface'].links[0].from_socket
+        bsdf = source_socket.node
         
         
-        uvm = nodes.new(type = 'ShaderNodeTexCoord')
+        uvm = nodes.new(type = 'ShaderNodeUVMap')
+        uvm.uv_map = uv_layer
         uvm.hide = True
         uvm.width = bsdf.width
         uvm.location = bsdf.location[0], bsdf.location[1]+160
@@ -265,14 +276,17 @@ class BakeLab_ApplyAO(Operator):
         ao_dark.location = bsdf.location[0], bsdf.location[1]+50
         ao_dark.width = bsdf.width
         ao_dark.hide = True
-        ao_dark.inputs[0].default_value = 0,0,0,0
-        ao_dark.inputs[1].default_value = 0
+        compat.input_socket(ao_dark, 'Color', 0).default_value = 0,0,0,0
+        compat.input_socket(ao_dark, 'Strength', 1).default_value = 0
         
         links.new(uvm.outputs['UV'],imgNode.inputs['Vector'])
-        links.new(imgNode.outputs['Color'], ao_mix.inputs[0])
-        links.new(ao_dark.outputs[0], ao_mix.inputs[1])
-        links.new(bsdf.outputs['BSDF'],    ao_mix.inputs[2])
-        links.new(ao_mix.outputs[0],  out.inputs['Surface'])
+        links.new(imgNode.outputs['Color'], compat.input_socket(ao_mix, 'Fac', 0))
+        # Mix Shader has two inputs named 'Shader'; the index picks them
+        links.new(compat.output_socket(ao_dark, 'Emission', 0),
+                  compat.input_socket(ao_mix, 'Shader', 1))
+        links.new(source_socket, compat.input_socket(ao_mix, 'Shader', 2))
+        links.new(compat.output_socket(ao_mix, 'Shader', 0),
+                  compat.input_socket(out, 'Surface', 0))
     
     def execute(self, context):
         props = context.scene.BakeLabProps
@@ -302,9 +316,6 @@ class BakeLab_ApplyAO(Operator):
                     if props.make_single_user:
                         bpy.ops.object.make_single_user(object=True, obdata=True)
                     
-                    if obj.data.uv_layers.active is not None:
-                        obj.data.uv_layers.active.active_render = True
-                    
                     if len(obj.material_slots) == 0:
                         bpy.ops.object.material_slot_add()
                     for slot in obj.material_slots:
@@ -314,7 +325,8 @@ class BakeLab_ApplyAO(Operator):
                             mat_name = slot.material.name
                             slot.material = slot.material.copy()
                             slot.material.name = mat_name + '_' + obj.name + '_AO'
-                        self.add_ao(mapData.image, slot.material)
+                        compat.enable_nodes(slot.material)
+                        self.add_ao(mapData.image, slot.material, objData.uv_layer)
                         materials_modified = True
                 break
         
@@ -331,10 +343,11 @@ class BakeLab_ApplyDisplace(Operator):
     bl_label = "Apply Displacement"
     bl_options = {'REGISTER','UNDO'}
         
-    def add_displacement(self, texture, obj):
+    def add_displacement(self, texture, obj, uv_layer=''):
         mod = obj.modifiers.new(name = 'Displacement', type = 'DISPLACE')
         mod.direction = 'RGB_TO_XYZ'
         mod.texture_coords = 'UV'
+        mod.uv_layer = uv_layer
         mod.texture = texture
         mod.show_in_editmode = True
         mod.show_on_cage = True
@@ -351,6 +364,11 @@ class BakeLab_ApplyDisplace(Operator):
                     continue
                 if mapData.bake_map.type != 'Displacement':
                     continue
+                if mapData.image is not None and mapData.image.source == 'TILED':
+                    # The legacy ImageTexture + Displace modifier path has no
+                    # UDIM support; only the base tile is displaced.
+                    self.report(type = {'WARNING'},
+                                message = 'Displacement from a UDIM image uses only the first tile')
 
                 name = context.scene.BakeLabProps.global_image_name
                 if len(data.obj_list) == 1:
@@ -368,7 +386,7 @@ class BakeLab_ApplyDisplace(Operator):
                         if not obj.select_get():
                             continue
                     
-                    self.add_displacement(tex, obj)
+                    self.add_displacement(tex, obj, objData.uv_layer)
                     objects_modified = True
                 break
         

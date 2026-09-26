@@ -11,22 +11,22 @@
 # You should have received a copy of the GNU General Public License
 # along with this program. If not, see <http://www.gnu.org/licenses/>.
 #
-# This addon requires Blender 5.0+ and uses modern API features including:
-# - get_transform/set_transform property accessors for better performance
-# - Updated to be compatible with Blender 5.0+ property storage changes
+# Supports Blender 4.2 LTS through 5.2 from a single build. Version
+# differences are handled in bakelab_compat.py by capability detection.
 
 bl_info = {
     "name" : "BakeLab",
     "author" : "Tabzy",
     "description" : "Bake textures easily",
-    "blender" : (5, 0, 0),
-    "version" : (2, 1, 0),
+    "blender" : (4, 2, 0),
+    "version" : (3, 0, 0),
     "location" : "View3D > Properties > BakeLab",
     "category" : "Baking"
 }
 
 if "bpy" in locals():
     import importlib
+    importlib.reload(bakelab_compat)
     importlib.reload(bakelab_bake)
     importlib.reload(bakelab_uv)
     importlib.reload(bakelab_baked_data)
@@ -34,6 +34,7 @@ if "bpy" in locals():
     importlib.reload(bakelab_map)
     importlib.reload(bakelab_ui)
 else:
+    from . import bakelab_compat
     from . import bakelab_bake
     from . import bakelab_uv
     from . import bakelab_baked_data
@@ -93,6 +94,26 @@ class BakeLabProperties(PropertyGroup):
                 ("TO_ACTIVE",  "Selected to active", "", "PIVOT_ACTIVE", 3)
             ),
             default = "INDIVIDUAL"
+        )
+    batch_source : EnumProperty(
+            name = 'Batch',
+            description = 'What forms the bake jobs; each job runs the bake mode on its object set',
+            items = (
+                ('SELECTION',  'Selection',   'One job: the current selection'),
+                ('MATERIAL',   'By Material', 'One job per material on the selected objects'),
+                ('COLLECTION', 'Collection',  'One job per collection'),
+                ('SCENE',      'Scene',       'One job: every mesh object in the scene')
+            ),
+            default = 'SELECTION'
+        )
+    batch_collection : PointerProperty(
+            type = bpy.types.Collection,
+            name = 'Collection',
+            description = 'Collection to bake; empty = every child collection of the scene collection'
+        )
+    batch_include_children : BoolProperty(
+            name = 'Include Child Collections',
+            default = True
         )
     cage_extrusion : FloatProperty(
             name = 'Cage Extrusion', default = 0.05,
@@ -187,6 +208,7 @@ class BakeLabProperties(PropertyGroup):
                 default=expanduser("~"),
                 name="Folder",
                 subtype="DIR_PATH",
+                options=bakelab_compat.PATH_PROPERTY_OPTIONS,
                 update=updateSavePath
             )
     show_bake_settings : BoolProperty(name = '', default = False)
@@ -234,6 +256,18 @@ class BakeLabProperties(PropertyGroup):
         )
     baking_map_size : StringProperty(
             name = 'Current baking size',
+            default = ""
+        )
+    baking_job_count : IntProperty(
+            name = 'Baking job count',
+            default = 0
+        )
+    baking_job_index : IntProperty(
+            name = 'Current baking job',
+            default = 0
+        )
+    baking_job_name : StringProperty(
+            name = 'Current baking job',
             default = ""
         )
 

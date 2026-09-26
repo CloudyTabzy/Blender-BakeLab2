@@ -53,6 +53,13 @@ class BakeLabMap(PropertyGroup):
         default = True
     )
 
+    use_udim: BoolProperty(
+        name = 'UDIM',
+        description = 'Bake one tile per UV tile (1001+). Tiles bake at final '
+                      'size; anti-aliasing is unavailable for UDIM maps',
+        default = False
+    )
+
     width  : IntProperty( 
                 name = 'Width', 
                 default = 1024 ,
@@ -82,13 +89,17 @@ class BakeLabMap(PropertyGroup):
     float_depth: BoolProperty(name = '32 bit float', default = False)
     color_space : EnumProperty(
                 name = 'Color Space',
-                description = 'Color Space',
+                description = ('Color space of the baked image; data maps (Normal, '
+                               'Roughness, etc.) should use Non-Color. The exact '
+                               'name is matched against the active color management '
+                               'config'),
                 items =  (('sRGB','sRGB',''),
                         ('Non-Color','Non-Color','')),
                 default = 'sRGB'
             )
     file_format : EnumProperty(
                 name = 'Format',
+                default = 'PNG',
                 items =  (
                     ('PNG',  'PNG', ''),
                     ('JPEG', 'JPEG', ''),
@@ -176,6 +187,7 @@ class BakeLabMap(PropertyGroup):
     
     normal_space : EnumProperty(
                 name = 'Normal Space',
+                default = 'TANGENT',
                 items =  (
                     ('TANGENT','Tangent Space',''),
                     ('OBJECT', 'Object Space','')
@@ -234,6 +246,12 @@ class BakeLabAddMapItem(bpy.types.Operator):
                                     min = 0)
     
     float_depth: BoolProperty(name = '32 bit float', default = False)            
+    use_udim: BoolProperty(
+        name = 'UDIM',
+        description = 'Bake one tile per UV tile (1001+). Tiles bake at final '
+                      'size; anti-aliasing is unavailable for UDIM maps',
+        default = False
+    )
     file_format : EnumProperty(
                 name = 'Format',
                 items =  (
@@ -385,6 +403,7 @@ class BakeLabAddMapItem(bpy.types.Operator):
             layout.prop(self, "image_scale")
             
         layout.prop(self, "float_depth")
+        layout.prop(self, "use_udim")
         if props.save_or_pack == 'SAVE':
             row = layout.row()
             row.prop(self, "file_format")
@@ -415,7 +434,8 @@ class BakeLabAddMapItem(bpy.types.Operator):
         return wm.invoke_props_dialog(self)
     
     def execute(self,context):
-        context.area.tag_redraw()
+        if context.area:
+            context.area.tag_redraw()
         item = context.scene.BakeLabMaps.add()
         
         item.type        = self.type
@@ -424,6 +444,7 @@ class BakeLabAddMapItem(bpy.types.Operator):
         item.image_scale = self.image_scale
         
         item.float_depth      = self.float_depth
+        item.use_udim         = self.use_udim
         item.file_format      = self.file_format
         item.png_channels     = self.png_channels
         item.png_depth        = self.png_depth
@@ -450,7 +471,8 @@ class BakeLabRemoveMapItem(bpy.types.Operator):
         return context.scene.BakeLabMaps
     
     def execute(self,context):
-        context.area.tag_redraw()
+        if context.area:
+            context.area.tag_redraw()
         context.scene.BakeLabMaps.remove(context.scene.BakeLabMapIndex)
         context.scene.BakeLabMapIndex = max(context.scene.BakeLabMapIndex - 1,0)
         context.scene.BakeLabMapIndex = min(context.scene.BakeLabMapIndex, len(context.scene.BakeLabMaps))
@@ -465,18 +487,19 @@ class BakeLabShowPassPresets(Operator):
             items  =  (
                 ('Color,Base Color,Albedo,Paint Color',  'Color/Albedo',''),
                 ('Metallic',                             'Metallic',''),
-                ('Specular,Glossiness,Glossy',           'Specular',''),
+                ('Specular IOR Level,Specular,Glossiness,Glossy', 'Specular',''),
                 ('Roughness',                            'Roughness',''),
                 ('Anisotropic',                          'Anisotropic',''),
-                ('Sheen',                                'Sheen',''),
-                ('Clearcoat',                            'Clearcoat',''),
-                ('Transmission',                         'Transmission ',''),
+                ('Sheen Weight,Sheen',                    'Sheen',''),
+                ('Coat Weight,Clearcoat',                 'Clearcoat',''),
+                ('Transmission Weight,Transmission',     'Transmission ',''),
                 ('Alpha',                                'Alpha ','')
             )
         )
     
     def execute(self,context):
-        context.area.tag_redraw()
+        if context.area:
+            context.area.tag_redraw()
         scene = context.scene
         if scene.BakeLabMapIndex>=0 and scene.BakeLabMaps:
             item = scene.BakeLabMaps[scene.BakeLabMapIndex]
