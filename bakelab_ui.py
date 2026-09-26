@@ -50,6 +50,22 @@ class BakeLabUI(Panel):
             
             layout.separator()
             
+            col = layout.column(align=True)
+            col.label(text="Batch:")
+            col.use_property_split = True
+            col.use_property_decorate = False
+            col.prop(props, "batch_source", text='Source')
+            if props.batch_source == 'COLLECTION':
+                col.prop(props, "batch_collection")
+                col.prop(props, "batch_include_children")
+            if props.bake_mode == 'TO_ACTIVE' and props.batch_source != 'SELECTION':
+                col.label(text="Selected to Active needs Selection", icon='ERROR')
+            if (props.batch_source == 'MATERIAL' and props.bake_mode == 'ALL_TO_ONE'
+                    and props.pre_join_mesh):
+                col.label(text="By Material cannot use Pre-Join", icon='ERROR')
+            
+            layout.separator()
+            
             layout.prop(props, "compute_device")
             col = layout.column(align=True)
             col.use_property_split = True
@@ -70,12 +86,16 @@ class BakeLabUI(Panel):
                 
             layout.use_property_split = True
             layout.prop(props, "anti_alias")
+            if any(m.enabled and m.use_udim for m in scene.BakeLabMaps):
+                layout.label(text="UDIM maps ignore anti-aliasing", icon = 'INFO')
             layout.prop(props, "save_or_pack", expand=True)
             layout.use_property_split = False
             if props.save_or_pack == "SAVE":
                 layout.prop(props, "save_path")
                 layout.prop(props, "create_folder")
-                if props.bake_mode == "ALL_TO_ONE":
+                # Matches PrepareImage's folder choice: Folder name is only
+                # used for a single Selection job; batches get per-job folders
+                if props.bake_mode == "ALL_TO_ONE" and props.batch_source == 'SELECTION':
                     layout.prop(props, "folder_name")
             else:
                 layout.label(text = "")
@@ -106,7 +126,9 @@ class BakeLabUI(Panel):
                 if props.show_map_settings:
                     box = subcol.box()
                     scol = box.column()
-                    scol.prop(item, 'aa_override')
+                    row = scol.row()
+                    row.enabled = not item.use_udim
+                    row.prop(item, 'aa_override')
                     if item.type != 'CustomPass':
                         scol.prop(item, 'color_space')
                     if item.type in {
@@ -182,6 +204,9 @@ class BakeLabUI(Panel):
                 col.separator()
                 col.prop(item, "img_name")
                 col.prop(item, "clear_img")
+                col.prop(item, "use_udim")
+                if item.use_udim:
+                    col.label(text="Bakes at final size, AA disabled", icon = 'INFO')
 
                 subcol = col.column(align = True)
                 if props.image_size == 'FIXED':
@@ -226,6 +251,14 @@ class BakeLabUI(Panel):
         else:
             if props.bake_state == 'BAKING':
                 layout.label(text = 'Baking', icon = 'RENDER_STILL')
+                if props.baking_job_count > 1:
+                    row = layout.row()
+                    row.label(text = 'Job:')
+                    row.label(
+                        text =
+                            str(props.baking_job_index) + ' of ' +
+                            str(props.baking_job_count) + '  (' + props.baking_job_name + ')'
+                    )
                 if props.bake_mode == 'INDIVIDUAL':
                     row = layout.row()
                     row.label(text = 'Objects:')
@@ -263,6 +296,11 @@ class BakeLabUI(Panel):
             elif props.bake_state == 'BAKED':
                 layout.label(text = 'Baked', icon = 'CHECKMARK')
                 
+                if props.baking_job_count > 1:
+                    row = layout.row()
+                    row.label(text = 'Jobs:')
+                    row.label(text = str(props.baking_job_count))
+                
                 if props.bake_mode == 'INDIVIDUAL':
                     row = layout.row()
                     row.label(text = 'Objects:')
@@ -270,10 +308,10 @@ class BakeLabUI(Panel):
                 
                 row = layout.row()
                 row.label(text = 'Total images: ')
-                if props.bake_mode == 'INDIVIDUAL':
-                    row.label(text = str(props.baking_map_count*props.baking_obj_count))
-                else:
-                    row.label(text = str(props.baking_map_count))
+                # Counted from the actual baked records: exact for every mode
+                # and across batch jobs (the old map_count x obj_count formula
+                # only described the last job)
+                row.label(text = str(sum(len(entry.map_list) for entry in scene.BakeLab_Data)))
                 
                 layout.separator()
                 

@@ -16,6 +16,7 @@ from .bakelab_tools import (
     SelectObjects,
     IsValidMesh
 )
+from . import bakelab_compat as compat
 
 class Unwrapper(Operator):
     """Unwrap"""
@@ -158,7 +159,7 @@ class Unwrapper(Operator):
         
         if self.unwrap_method == 'smart_uv':
             bpy.ops.uv.smart_project(
-                angle_limit = self.smart_uv_angle / 57.2958, # To radian
+                angle_limit = self.smart_uv_angle / 57.2958, # smart_project takes radians on 4.2 - 5.2
                 island_margin = self.smart_uv_margin
             )
         elif self.unwrap_method == 'lightmap_uv':
@@ -214,9 +215,9 @@ class Unwrapper(Operator):
                 
                 if self.uvmap_options_individual == 'CREATE_NEW':
                     if self.check_uv_name and self.default_uv_name in obj.data.uv_layers:
-                        obj.data.uv_layers.active = obj.data.uv_layers[self.default_uv_name]
+                        compat.set_active_uv_layer(obj.data.uv_layers, obj.data.uv_layers[self.default_uv_name])
                     else:
-                        obj.data.uv_layers.active = obj.data.uv_layers.new(name = self.default_uv_name)
+                        compat.set_active_uv_layer(obj.data.uv_layers, obj.data.uv_layers.new(name = self.default_uv_name))
                     self.Unwrap(context)
                 elif self.uvmap_options_individual == 'IF_MISSING':
                     if len(obj.data.uv_layers) == 0:
@@ -243,9 +244,9 @@ class Unwrapper(Operator):
             
             if self.uvmap_options == 'CREATE_NEW':
                 if self.check_uv_name  and  self.default_uv_name in active_object.data.uv_layers:
-                    active_object.data.uv_layers.active = active_object.data.uv_layers[self.default_uv_name]
+                    compat.set_active_uv_layer(active_object.data.uv_layers, active_object.data.uv_layers[self.default_uv_name])
                 else:
-                    active_object.data.uv_layers.active = active_object.data.uv_layers.new(name = self.default_uv_name)
+                    compat.set_active_uv_layer(active_object.data.uv_layers, active_object.data.uv_layers.new(name = self.default_uv_name))
             
             self.Unwrap(context)
             
@@ -259,9 +260,9 @@ class Unwrapper(Operator):
                     self.modifier_apply(context, obj)
                 if self.uvmap_options == 'CREATE_NEW':
                     if self.check_uv_name  and  self.default_uv_name in obj.data.uv_layers:
-                        obj.data.uv_layers.active = obj.data.uv_layers[self.default_uv_name]
+                        compat.set_active_uv_layer(obj.data.uv_layers, obj.data.uv_layers[self.default_uv_name])
                     else:
-                        obj.data.uv_layers.active = obj.data.uv_layers.new(name = self.default_uv_name)
+                        compat.set_active_uv_layer(obj.data.uv_layers, obj.data.uv_layers.new(name = self.default_uv_name))
 
             SelectObjects(mesh_objects[0], mesh_objects) # Unwrap all of them together
             self.Unwrap(context)

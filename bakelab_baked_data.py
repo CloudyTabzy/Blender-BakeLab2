@@ -19,6 +19,7 @@ class BakeObjData(PropertyGroup):
     obj : PointerProperty(
         type=bpy.types.Object
     )
+    uv_layer : StringProperty(name='Bake UV Map')
 class BakeMapData(PropertyGroup):
     bake_map : PointerProperty(
         type=bakelab_map.BakeLabMap
@@ -38,6 +39,8 @@ class BakeLab_BakedData(PropertyGroup):
     def AddObj(self, obj):
         item = self.obj_list.add()
         item.obj = obj
+        uv_layer = obj.data.uv_layers.active
+        item.uv_layer = uv_layer.name if uv_layer else ''
 
     def AddMap(self, bake_map, image):
         item = self.map_list.add()
