@@ -36,7 +36,6 @@ paths_exclude_pattern = [
   "/*.png",
   "/TESTING.md",
   "/ruff.toml",
-  "/AGENTS.md",
   "/tests/",
   "/dist/",
 ]
