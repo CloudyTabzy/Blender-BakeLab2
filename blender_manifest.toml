@@ -35,6 +35,8 @@ paths_exclude_pattern = [
   "/.gitignore",
   "/*.png",
   "/TESTING.md",
+  "/ruff.toml",
+  "/AGENTS.md",
   "/tests/",
   "/dist/",
 ]

@@ -7,9 +7,7 @@ from bpy.props import (
             EnumProperty,
             BoolProperty,
             FloatProperty,
-            StringProperty,
-            PointerProperty,
-            CollectionProperty
+            StringProperty
         )
 from .bakelab_tools import (
     SelectObject,

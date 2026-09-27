@@ -2,15 +2,6 @@ import bpy
 from bpy.types import (
             Operator
         )
-from bpy.props import (
-            IntProperty,
-            EnumProperty,
-            BoolProperty,
-            FloatProperty,
-            StringProperty,
-            PointerProperty,
-            CollectionProperty
-        )
 from .bakelab_tools import (
     SelectObject,
     SelectObjects
@@ -187,12 +178,12 @@ class BakeLab_GenerateMaterials(Operator):
         
         materials_created = False
         for data in baked_data:
-            if data == None:
+            if data is None:
                 continue
             self.baked_types = []
             name = context.scene.BakeLabProps.global_image_name
             if len(data.obj_list) == 1:
-                if data.obj_list[0].obj != None:
+                if data.obj_list[0].obj is not None:
                     name = data.obj_list[0].obj.name
             if len(data.obj_list) == 0:  # Just in case
                 continue
@@ -205,7 +196,7 @@ class BakeLab_GenerateMaterials(Operator):
             
             for objData in data.obj_list:
                 obj = objData.obj
-                if obj == None:
+                if obj is None:
                     continue
                 
                 #if 'Normal' in self.baked_types:
@@ -245,7 +236,7 @@ class BakeLab_ApplyAO(Operator):
             if node.type == 'OUTPUT_MATERIAL' and node.is_active_output:
                 out = node
                 break
-        if out == None:
+        if out is None:
             return
         
         if len(out.inputs) == 0:
@@ -296,17 +287,17 @@ class BakeLab_ApplyAO(Operator):
         
         materials_modified = False
         for data in baked_data:
-            if data == None:
+            if data is None:
                 continue
             for mapData in data.map_list:
-                if mapData.bake_map == None:
+                if mapData.bake_map is None:
                     continue
                 if mapData.bake_map.type != 'AO':
                     continue
                 
                 for objData in data.obj_list:
                     obj = objData.obj
-                    if obj == None:
+                    if obj is None:
                         continue
                     if props.apply_only_selected:
                         if obj not in selected_objects:
@@ -319,7 +310,7 @@ class BakeLab_ApplyAO(Operator):
                     if len(obj.material_slots) == 0:
                         bpy.ops.object.material_slot_add()
                     for slot in obj.material_slots:
-                        if slot.material == None:
+                        if slot.material is None:
                             slot.material = bpy.data.materials.new(obj.name+'_AO')
                         if slot.material.users > 1:
                             mat_name = slot.material.name
@@ -357,10 +348,10 @@ class BakeLab_ApplyDisplace(Operator):
         baked_data = context.scene.BakeLab_Data
         objects_modified = False
         for data in baked_data:
-            if data == None:
+            if data is None:
                 continue
             for mapData in data.map_list:
-                if mapData.bake_map == None:
+                if mapData.bake_map is None:
                     continue
                 if mapData.bake_map.type != 'Displacement':
                     continue
@@ -372,7 +363,7 @@ class BakeLab_ApplyDisplace(Operator):
 
                 name = context.scene.BakeLabProps.global_image_name
                 if len(data.obj_list) == 1:
-                    if data.obj_list[0].obj != None:
+                    if data.obj_list[0].obj is not None:
                         name = data.obj_list[0].obj.name
                 tex = bpy.data.textures.new(name = name, type = 'IMAGE')
                 tex.intensity = 1.5
@@ -380,7 +371,7 @@ class BakeLab_ApplyDisplace(Operator):
                 
                 for objData in data.obj_list:
                     obj = objData.obj
-                    if obj == None:
+                    if obj is None:
                         continue
                     if props.apply_only_selected:
                         if not obj.select_get():

@@ -1,17 +1,14 @@
 import bpy
 from bpy.types import (
             Operator, 
-            PropertyGroup, 
-            Panel
+            PropertyGroup
         )
 from bpy.props import (
             IntProperty,
             EnumProperty,
             BoolProperty,
             FloatProperty,
-            StringProperty,
-            PointerProperty,
-            CollectionProperty
+            StringProperty
         )
 
 class BakeLabMap(PropertyGroup):

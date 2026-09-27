@@ -3,18 +3,7 @@ import traceback
 import bpy
 
 from bpy.types import (
-            Operator, 
-            PropertyGroup, 
-            Panel
-        )
-from bpy.props import (
-            IntProperty,
-            EnumProperty,
-            BoolProperty,
-            FloatProperty,
-            StringProperty,
-            PointerProperty,
-            CollectionProperty
+            Operator
         )
 
 from array import array
@@ -442,7 +431,7 @@ class Baker(Operator):
         links = mat.node_tree.links
         
         out = self.find_node(nodes, 'OUTPUT_MATERIAL')
-        if out == None:
+        if out is None:
             return
 
         displacement = compat.input_socket(out, 'Displacement', 2)

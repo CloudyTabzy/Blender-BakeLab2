@@ -1,0 +1,5 @@
+[lint.per-file-ignores]
+# __init__.py uses the standard add-on reload idiom: importlib.reload()
+# runs on names that are only bound in the else branch on first load, and
+# the bpy imports must follow that conditional block.
+"__init__.py" = ["E402", "F821"]
