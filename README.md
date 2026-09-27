@@ -85,7 +85,8 @@ This writes `blender_bakelab-<version>.zip`, containing only the files the add-o
 * All To One no longer wipes earlier objects, and Max Ray Distance is its own setting
 * Adaptive size applies each map's Image Scale; reused images are resized to the map size
 
-See [TESTING.md](TESTING.md) for the release test checklist.
+See `TESTING.md` for the release test checklist (kept outside the
+add-on package, in the `docs/` folder next to the release zips).
 
 ### Correctness fixes
 
