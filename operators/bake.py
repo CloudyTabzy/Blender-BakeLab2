@@ -18,7 +18,8 @@ from ..utils.tools import (
     SelectObjects,
     IsValidMesh,
     material_has_wired_alpha,
-    pair_high_low
+    pair_high_low,
+    safe_file_name
 )
 from ..utils import compat
 from ..properties.maps import apply_type_defaults
@@ -788,7 +789,7 @@ class Baker(Operator):
             if map.file_format == 'OPEN_EXR':
                 extension = '.exr'
             
-            file_stem = bake_image.name
+            file_stem = safe_file_name(bake_image.name)
             if bake_image.source == 'TILED':
                 # Tiled images only save through a path with the <UDIM> marker;
                 # it writes one file per tile (name_1001.png, ...)
@@ -804,7 +805,8 @@ class Baker(Operator):
                 else:
                     # Per-object folder, or per-job folder when batching
                     folder = name
-                filepath = abspath(join(abs_save_path, folder, file_stem + extension))
+                filepath = abspath(join(abs_save_path, safe_file_name(folder),
+                                        file_stem + extension))
             else:
                 filepath = abspath(join(abs_save_path, file_stem + extension))
             # A reused FILE or TILED image loads its pixels lazily from its

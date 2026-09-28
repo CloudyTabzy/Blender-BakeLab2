@@ -22,6 +22,15 @@ def IsValidMesh(self, obj):
         return False
     return True
 
+# Characters Windows or POSIX reject in a file name, path separators included
+_UNSAFE_FILE_CHARS_RE = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
+
+def safe_file_name(name):
+    """`name` usable as one file or folder name: object, material and
+    collection names may hold ':' or '/', which would fail the save or
+    nest folders. Windows also drops trailing dots and spaces."""
+    return _UNSAFE_FILE_CHARS_RE.sub('_', name).rstrip(' .') or '_'
+
 # Socket names (casefolded) that hold a material's opacity
 ALPHA_SOCKET_NAMES = {'alpha', 'opacity', 'transparency', 'transparent'}
 

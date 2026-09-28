@@ -540,6 +540,21 @@ class BakeLabRegressions(_BakeLabTestBase):
                     self.run_pipeline()
                     self.assertEqual(os.listdir(second), files)
 
+    def test_unsafe_names_save_to_sanitized_paths(self):
+        self.plane('Wood: Oak/Plank')
+        self.bake_map()
+        self.props.save_or_pack = 'SAVE'
+        self.props.create_folder = True  # Individual mode: folder per object
+        with tempfile.TemporaryDirectory() as directory:
+            self.props.save_path = directory
+            self.run_pipeline()
+            self.assertEqual(os.listdir(directory), ['Wood_ Oak_Plank'])
+            self.assertEqual(os.listdir(os.path.join(directory, 'Wood_ Oak_Plank')),
+                             ['Wood_ Oak_Plank_Albedo.png'])
+        # The image datablock keeps the real name
+        self.assertEqual(self.scene.BakeLab_Data[0].map_list[0].image.name,
+                         'Wood: Oak/Plank_Albedo')
+
     def test_normal_background_and_antialiasing_preserve_coverage(self):
         self.plane()
         self.bake_map('Normal')
