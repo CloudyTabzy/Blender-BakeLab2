@@ -162,6 +162,41 @@ class BakeLab_GenerateMaterials(Operator):
                 links.new(imgNode.outputs['Color'], pbr.inputs['Metallic'])
                 links.new(uvm.outputs['UV'], imgNode.inputs['Vector'])
                 pass_available = True
+            if bake_map.type == 'AORM':
+                out.location[0] += 250
+                imgNode = nodes.new(type = 'ShaderNodeTexImage')
+                imgNode.hide = True
+                imgNode.location = -1400, 150
+                imgNode.image = bake_image
+                sep = nodes.new(type = 'ShaderNodeSeparateColor')
+                sep.location = -1200, 150
+                sep.hide = True
+                ao_mix = nodes.new(type = 'ShaderNodeMixShader')
+                ao_mix.location = 0, 0
+                ao_dark = nodes.new(type = 'ShaderNodeEmission')
+                ao_dark.label = 'Dark'
+                ao_dark.location = -400, 100
+                ao_dark.width = pbr.width
+                ao_dark.hide = True
+                compat.input_socket(ao_dark, 'Color', 0).default_value = 0,0,0,0
+                compat.input_socket(ao_dark, 'Strength', 1).default_value = 0
+
+                links.new(uvm.outputs['UV'],imgNode.inputs['Vector'])
+                links.new(imgNode.outputs['Color'], sep.inputs['Color'])
+                # Packed channels: R = occlusion (darkens the shaded result),
+                # G = roughness, B = metallic
+                links.new(sep.outputs['Green'], pbr.inputs['Roughness'])
+                links.new(sep.outputs['Blue'], pbr.inputs['Metallic'])
+                links.new(sep.outputs['Red'],
+                          compat.input_socket(ao_mix, 'Fac', 0))
+                # Mix Shader has two inputs named 'Shader'; the index picks them
+                links.new(compat.output_socket(ao_dark, 'Emission', 0),
+                          compat.input_socket(ao_mix, 'Shader', 1))
+                links.new(pbr.outputs['BSDF'],
+                          compat.input_socket(ao_mix, 'Shader', 2))
+                links.new(compat.output_socket(ao_mix, 'Shader', 0),
+                          compat.input_socket(out, 'Surface', 0))
+                pass_available = True
 
             ###### Custom Passes{
             if bake_map.type == 'CustomPass':

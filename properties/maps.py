@@ -27,6 +27,7 @@ MAP_TYPE_ITEMS = (
                 ('Combined',    'Combined',''),
                 ('CustomPass',  'Custom Pass',''),
                 ('AO',          'Ambient Occlusion',''),
+                ('AORM',        'AORM','Packed map: AO to red, Roughness to green, Metallic to blue'),
                 ('Displacement','Displacement','')
         )
 
@@ -229,6 +230,10 @@ def apply_type_defaults(item, map_type):
         item.color_space = 'Non-Color'
     if map_type == 'AO':
         item.img_name = '*_ao'
+        item.samples  = 64
+        item.color_space = 'Non-Color'
+    if map_type == 'AORM':
+        item.img_name = '*_aorm'
         item.samples  = 64
         item.color_space = 'Non-Color'
     if map_type == 'Shadow':

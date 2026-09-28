@@ -451,6 +451,31 @@ class BakeLabRegressions(_BakeLabTestBase):
         top = tuple(pixels[i] for i in range((12 * 16 + 4) * 4, (12 * 16 + 4) * 4 + 3))
         self.assertNotEqual(bottom, top)
 
+    def test_aorm_map_packs_occlusion_roughness_metallic(self):
+        obj, mat = self.plane()
+        bsdf = mat.node_tree.nodes['Principled BSDF']
+        bsdf.inputs['Roughness'].default_value = 0.6
+        bsdf.inputs['Metallic'].default_value = 0.4
+        item = self.bake_map('AORM')
+        item.color_space = 'Non-Color'
+        item.samples = 4  # the AO channel needs a few samples
+        self.run_pipeline()
+        image = self.scene.BakeLab_Data[0].map_list[0].image
+        i = (4 * image.size[0] + 4) * 4
+        self.assertAlmostEqual(image.pixels[i + 1], 0.6, places=1)
+        self.assertAlmostEqual(image.pixels[i + 2], 0.4, places=1)
+        self.assertGreater(image.pixels[i], 0.8)  # open plane is unoccluded
+
+    def test_aorm_generate_splits_channels(self):
+        obj, mat = self.plane()
+        item = self.bake_map('AORM')
+        item.samples = 4
+        self.run_pipeline()
+        self.assertEqual(bpy.ops.bakelab.generate_mats(), {'FINISHED'})
+        pbr = obj.active_material.node_tree.nodes.get('Principled BSDF')
+        self.assertTrue(pbr.inputs['Roughness'].is_linked)
+        self.assertTrue(pbr.inputs['Metallic'].is_linked)
+
     def test_reused_image_preserves_pixels_outside_bake_uv(self):
         obj, _ = self.plane()
         item = self.bake_map()

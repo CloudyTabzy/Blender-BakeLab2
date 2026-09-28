@@ -1,6 +1,59 @@
 from bpy.types import (
             Panel
         )
+from ..utils.tools import material_has_wired_alpha
+
+
+def bake_readiness(context):
+    """Preflight checklist for the Bake button. Mirrors what the baker
+    validates and auto-fixes, so the panel can say what will happen
+    before the button is clicked. Returns (status, label) pairs;
+    status is 'ok', 'info' or 'warn'."""
+    props = context.scene.BakeLabProps
+    checks = []
+    if props.batch_source != 'SELECTION':
+        checks.append(('info', 'Bakes a %s batch, not just the selection'
+                               % props.batch_source.title()))
+    else:
+        meshes = [o for o in context.selected_objects
+                  if o.type == 'MESH' and len(o.data.polygons) > 0]
+        if props.bake_mode == 'TO_ACTIVE':
+            active_ok = context.active_object in meshes
+            checks.append(('ok' if active_ok and len(meshes) > 1 else 'warn',
+                           'Needs an active mesh plus source objects'))
+            targets = (context.active_object,) if active_ok else ()
+        else:
+            checks.append(('ok' if meshes else 'warn',
+                           '%d mesh object%s selected'
+                           % (len(meshes), 's' if len(meshes) != 1 else '')))
+            targets = meshes
+        missing = [o.name for o in targets if len(o.data.uv_layers) == 0]
+        if missing:
+            checks.append(('warn', 'Missing UV map: ' + ', '.join(missing[:3])
+                                   + (' ...' if len(missing) > 3 else '')))
+        elif targets:
+            checks.append(('ok', 'UV maps present'))
+    if props.bake_mode == 'TO_ACTIVE' and props.batch_source != 'SELECTION':
+        checks.append(('warn', 'Selected to Active needs the Selection batch'))
+    if (props.batch_source == 'MATERIAL' and props.bake_mode == 'ALL_TO_ONE'
+            and props.pre_join_mesh):
+        checks.append(('warn', 'By Material cannot use Pre-Join Meshes'))
+    maps = context.scene.BakeLabMaps
+    enabled = sum(1 for m in maps if m.enabled)
+    if len(maps) == 0:
+        checks.append(('info', 'No maps yet - a default Albedo map is added'))
+    elif enabled == 0:
+        checks.append(('warn', 'All bake maps are disabled'))
+    else:
+        checks.append(('ok', '%d bake map%s enabled'
+                       % (enabled, 's' if enabled != 1 else '')))
+    if props.batch_source == 'SELECTION' and not any(m.type == 'Alpha' for m in maps):
+        if any(material_has_wired_alpha(slot.material)
+               for o in context.selected_objects if o.type == 'MESH'
+               for slot in o.material_slots):
+            checks.append(('info', 'Wired Alpha input - an Alpha map will be added'))
+    return checks
+
 
 class BakeLabUI(Panel):
     bl_label = "BakeLab"
@@ -17,9 +70,21 @@ class BakeLabUI(Panel):
         props = scene.BakeLabProps
 
         if props.bake_state == 'NONE':
+            checks = bake_readiness(context)
+            has_blocker = any(status == 'warn' for status, _ in checks)
+
             col = layout.column()
             col.scale_y = 1.5
+            # Every 'warn' item is a real blocker, so the checklist doubles
+            # as the button's enabled state
+            col.enabled = not has_blocker
             col.operator("bakelab.bake", text = 'Bake', icon='RENDER_STILL')
+
+            box = layout.box()
+            col = box.column(align = True)
+            icons = {'ok': 'CHECKMARK', 'info': 'INFO', 'warn': 'CANCEL'}
+            for status, label in checks:
+                col.label(text = label, icon = icons[status])
             
             row = layout.row(align = True)
             row.operator("bakelab.unwrap", icon='UV')

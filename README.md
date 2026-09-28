@@ -2,7 +2,7 @@
 ![Thumbnail](images/bakelab_thumbnail_text_logo_small.png)
 BakeLab - A blender addon for baking images.<br>
 Compatible with Blender 4.2 LTS through 5.2 from a single build.<br>
-Current release: **3.2.0** (tag `v3.2`).
+Current release: **3.3.0** (tag `v3.3`).
 
 **Fork:** https://github.com/CloudyTabzy/Blender-BakeLab2
 
@@ -39,6 +39,15 @@ blender --command extension build
 ```
 
 This writes `blender_bakelab-<version>.zip`, containing only the files the add-on needs.
+
+## Changes in 3.3.0
+
+* **AORM packed map type**: bakes occlusion, roughness and metallic into
+  one RGB texture in a single EMIT pass; Generate Materials splits the
+  channels back into Principled Roughness/Metallic with AO darkening.
+* **Preflight checklist**: the panel shows at a glance whether a bake is
+  ready — selected mesh count, missing UVs, enabled map count,
+  auto-added maps and batch conflicts — and greys out Bake on blockers.
 
 ## Changes in 3.2.0
 

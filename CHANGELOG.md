@@ -10,6 +10,21 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+## [3.3.0] - 2026-09-28
+
+### Added
+
+- **AORM packed map type**: one EMIT pass packs occlusion into red,
+  roughness into green and metallic into blue (ambient occlusion is
+  computed in-shader, roughness/metallic come from the leaf shader's
+  sockets, linked or static). Generate Materials splits the channels
+  back into Principled Roughness/Metallic and darkens via the AO mix.
+- **Preflight checklist**: the panel now shows what a bake will do
+  before you click — selected mesh count, missing UVs (named),
+  configured/enabled map count, batch/mode conflicts, and when an
+  Alpha map or a default Albedo map will be auto-added. A blocking
+  item greys out the Bake button.
+
 ## [3.2.0] - 2026-09-28
 
 ### Added
@@ -95,7 +110,8 @@ or raising `blender_version_min`.
     "Shader" inputs) bind to the intended socket on every version;
   - saved images keep their exact colors on all supported versions.
 
-[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.2...HEAD
+[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.3...HEAD
+[3.3.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.2...v3.3
 [3.2.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.1.1...v3.2
 [3.1.1]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.1...v3.1.1
 [3.1.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3...v3.1

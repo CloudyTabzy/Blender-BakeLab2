@@ -15,7 +15,8 @@ from os.path import abspath, join
 from ..utils.tools import (
     SelectObject,
     SelectObjects,
-    IsValidMesh
+    IsValidMesh,
+    material_has_wired_alpha
 )
 from ..utils import compat
 from ..properties.maps import apply_type_defaults
@@ -76,13 +77,13 @@ class Baker(Operator):
         'Alpha':        'EMIT',
         'Metallic':     'EMIT',
         'MatID':        'EMIT',
+        'AORM':         'EMIT',
         'Position':     'POSITION',
         'CustomPass':   'EMIT',
     }
 
     # Socket names (casefolded) that hold a material's opacity
     ALPHA_PASS_NAMES = ('Alpha,Opacity,Transparency,Transparent')
-    ALPHA_SOCKET_NAMES = {'alpha', 'opacity', 'transparency', 'transparent'}
 
     def save_defaults(self, context):
         scene = context.scene
@@ -275,6 +276,61 @@ class Baker(Operator):
             links.new(compat.output_socket(emit, 'Emission', 0),
                       compat.input_socket(out, 'Surface', 0))
             
+    def feed_channel(self, node, names, dst_socket, nodes, links):
+        """Feed one AORM channel from a leaf socket: its upstream link when
+        linked, else its static default. Missing sockets leave the channel
+        at its default (0)."""
+        names = [name.casefold() for name in names]
+        src = next((s for n in names for s in node.inputs
+                    if s.name.casefold() == n or s.identifier.casefold() == n), None)
+        if src is None:
+            return
+        if src.is_linked:
+            links.new(src.links[0].from_socket, dst_socket)
+        elif src.type == 'VALUE':
+            dst_socket.default_value = src.default_value
+        elif src.type == 'RGBA':
+            dst_socket.default_value = sum(src.default_value[:3]) / 3
+
+    def aorm_to_rgb(self, node, src_socket, nodes, links):
+        """Same leaf-walk as passes_to_rgb, but the replacement emission
+        carries the packed map: R = occlusion, G = roughness, B = metallic."""
+        has_bsdf_inputs = False
+        for input in node.inputs:
+            if input.type == 'SHADER':
+                has_bsdf_inputs = True
+                if len(input.links):
+                    self.aorm_to_rgb(input.links[0].from_node, input,
+                                     nodes, links)
+
+        if not has_bsdf_inputs:
+            emit = nodes.new(type = 'ShaderNodeEmission')
+            combine = nodes.new(type = 'ShaderNodeCombineColor')
+            ao = nodes.new(type = 'ShaderNodeAmbientOcclusion')
+            links.new(compat.output_socket(ao, 'AO', 1), combine.inputs['Red'])
+            self.feed_channel(node, ('Roughness',),
+                              combine.inputs['Green'], nodes, links)
+            self.feed_channel(node, ('Metallic', 'Metalness', 'Metal'),
+                              combine.inputs['Blue'], nodes, links)
+            links.new(combine.outputs['Color'],
+                      compat.input_socket(emit, 'Color', 0))
+            links.new(compat.output_socket(emit, 'Emission', 0), src_socket)
+
+    def aorm_to_emit_node(self, mat):
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        out = self.find_node(nodes, 'OUTPUT_MATERIAL')
+        if out:
+            self.aorm_to_rgb(out, None, nodes, links)
+        else:
+            out = nodes.new(type = 'ShaderNodeOutputMaterial')
+            emit = nodes.new(type = 'ShaderNodeEmission')
+            ao = nodes.new(type = 'ShaderNodeAmbientOcclusion')
+            links.new(compat.output_socket(ao, 'AO', 1),
+                      compat.input_socket(emit, 'Color', 0))
+            links.new(compat.output_socket(emit, 'Emission', 0),
+                      compat.input_socket(out, 'Surface', 0))
+
     def copy_node(self, dst_nodes, node):
         try:
             new_node = dst_nodes.new(type = node.bl_idname)
@@ -814,6 +870,9 @@ class Baker(Operator):
                 if map.type == 'MatID':
                     orig = self.material_originals.get(mat, mat)
                     self.material_to_flat_emit(mat, self.material_id_color(orig.name))
+                if map.type == 'AORM':
+                    self.ungroup_nodes(mat.node_tree)
+                    self.aorm_to_emit_node(mat)
                 if map.type == 'Displacement':
                     self.displacement_to_color(mat)
                     
@@ -1167,24 +1226,6 @@ class Baker(Operator):
         links.new(compat.output_socket(emit, 'Emission', 0),
                   compat.input_socket(out, 'Surface', 0))
 
-    def material_has_wired_alpha(self, mat):
-        """True when the material's opacity depends on nodes: an alpha-named
-        value socket with a live link, or a Transparent BSDF that feeds
-        something. Leaf-level scan - the bake itself handles node groups."""
-        if mat is None or not getattr(mat, 'use_nodes', False) \
-                or mat.node_tree is None:
-            return False
-        for node in mat.node_tree.nodes:
-            if node.bl_idname == 'ShaderNodeBsdfTransparent' \
-                    and node.outputs and node.outputs[0].is_linked:
-                return True
-            for socket in node.inputs:
-                if socket.type == 'VALUE' and socket.is_linked \
-                        and (socket.name.casefold() in self.ALPHA_SOCKET_NAMES
-                             or socket.identifier.casefold() in self.ALPHA_SOCKET_NAMES):
-                    return True
-        return False
-
     def jobs_have_wired_alpha(self, jobs, bake_mode):
         for job in jobs:
             # Selected to Active bakes the sources' alpha, not the target's
@@ -1192,7 +1233,7 @@ class Baker(Operator):
                       if bake_mode == 'TO_ACTIVE' else job.objects
             for obj in objects:
                 for slot in obj.material_slots:
-                    if self.material_has_wired_alpha(slot.material):
+                    if material_has_wired_alpha(slot.material):
                         return True
         return False
 
