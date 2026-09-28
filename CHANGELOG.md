@@ -10,6 +10,21 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+## [3.5.0] - 2026-09-28
+
+### Added
+
+- **Import Textures** (image icon beside the UV tools): opens a file
+  picker and wires textures into materials by filename convention —
+  `<object-or-material>_<channel>[_<tile>]` (`sword_albedo.png`,
+  `sword_low_normal.png`, `prop_roughness_1001.png`). Covers albedo,
+  normal (via Normal Map), roughness, metallic, specular, emission,
+  alpha (with transparency enabled), AO (multiplied into Base Color),
+  packed AORM (channel-split), and height/displacement (via Bump).
+  Data maps get Non-Color, `_####` files load as UDIM tiles, bare
+  channel names (`albedo.png`) target the active object, and
+  unrecognized or unmatched files are reported instead of dropped.
+
 ## [3.4.0] - 2026-09-28
 
 ### Added
@@ -139,7 +154,8 @@ or raising `blender_version_min`.
     "Shader" inputs) bind to the intended socket on every version;
   - saved images keep their exact colors on all supported versions.
 
-[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.4...HEAD
+[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.5...HEAD
+[3.5.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.4...v3.5
 [3.4.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.3.1...v3.4
 [3.3.1]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.3...v3.3.1
 [3.3.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.2...v3.3

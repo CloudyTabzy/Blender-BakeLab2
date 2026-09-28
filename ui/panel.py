@@ -111,6 +111,7 @@ class BakeLabUI(Panel):
             row = layout.row(align = True)
             row.operator("bakelab.unwrap", icon='UV')
             row.operator("bakelab.clear_uv", icon='UV')
+            row.operator("bakelab.import_textures", icon='FILE_IMAGE')
             row.operator("bakelab.cleanup", icon='TRASH', text="")
 
             layout.separator()

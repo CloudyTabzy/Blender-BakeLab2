@@ -1159,6 +1159,98 @@ class Cleanup(_BakeLabTestBase):
         self.assertEqual(self.props.bake_state, 'NONE')
 
 
+class TextureImport(_BakeLabTestBase):
+    """bakelab.import_textures: filename parsing, channel wiring, targets."""
+
+    def write_image(self, directory, name):
+        image = bpy.data.images.new('tmp_' + name, 4, 4)
+        path = os.path.join(directory, name)
+        image.filepath_raw = path
+        image.file_format = 'PNG'
+        image.save()
+        bpy.data.images.remove(image)
+        return path
+
+    def import_files(self, directory, *names):
+        report = Mock()
+        paths = [self.write_image(directory, n) for n in names]
+        wired, skipped = ADDON.operators.import_textures.import_textures(
+            self.context(), paths, report)
+        return wired, skipped, report
+
+    def pbr(self, mat):
+        return next(n for n in mat.node_tree.nodes
+                    if n.bl_idname == 'ShaderNodeBsdfPrincipled')
+
+    def test_parse_texture_file(self):
+        parse = ADDON.operators.import_textures.parse_texture_file
+        self.assertEqual(parse('sword_albedo.png'), ('sword', 'basecolor', None))
+        self.assertEqual(parse('sword_low_Normal.PNG'), ('sword_low', 'normal', None))
+        self.assertEqual(parse('sword_roughness_1001.png'),
+                         ('sword', 'roughness', 1001))
+        self.assertEqual(parse('wood_ao.exr'), ('wood', 'ao', None))
+        self.assertIsNone(parse('readme.png'))
+        self.assertIsNone(parse('sword_1001.png'))  # a tile alone is no channel
+
+    def test_imports_channels_by_object_name(self):
+        obj, mat = self.plane('sword')
+        with tempfile.TemporaryDirectory() as directory:
+            wired, skipped, _ = self.import_files(
+                directory, 'sword_albedo.png', 'sword_normal.png',
+                'sword_roughness.png', 'sword_metallic.png')
+        pbr = self.pbr(mat)
+        self.assertTrue(pbr.inputs['Base Color'].is_linked)
+        nmap = pbr.inputs['Normal'].links[0].from_node
+        self.assertEqual(nmap.bl_idname, 'ShaderNodeNormalMap')
+        self.assertTrue(pbr.inputs['Roughness'].is_linked)
+        self.assertTrue(pbr.inputs['Metallic'].is_linked)
+        self.assertEqual(len(wired), 4)
+        self.assertEqual(skipped, [])
+        # Data maps must land as Non-Color or baking breaks downstream
+        rough_img = pbr.inputs['Roughness'].links[0].from_node.image
+        self.assertEqual(rough_img.colorspace_settings.name, 'Non-Color')
+
+    def test_skip_and_active_fallback(self):
+        obj, mat = self.plane('sword')
+        with tempfile.TemporaryDirectory() as directory:
+            wired, skipped, _ = self.import_files(
+                directory, 'albedo.png', 'ghost_albedo.png', 'notes.png')
+        # A bare channel name falls back to the active object; unknown
+        # targets and unrecognized channels are reported, not dropped.
+        self.assertEqual(len(wired), 1)
+        self.assertEqual(len(skipped), 2)
+        self.assertTrue(self.pbr(mat).inputs['Base Color'].is_linked)
+
+    def test_imports_by_material_name(self):
+        obj, mat = self.plane('sword')
+        mat.name = 'wood'
+        with tempfile.TemporaryDirectory() as directory:
+            wired, skipped, _ = self.import_files(directory, 'wood_roughness.png')
+        self.assertTrue(self.pbr(mat).inputs['Roughness'].is_linked)
+        self.assertEqual(skipped, [])
+
+    def test_aorm_and_alpha_wiring(self):
+        obj, mat = self.plane('sword')
+        with tempfile.TemporaryDirectory() as directory:
+            self.import_files(directory, 'sword_aorm.png', 'sword_alpha.png')
+        pbr = self.pbr(mat)
+        self.assertTrue(any(n.bl_idname == 'ShaderNodeSeparateColor'
+                            for n in mat.node_tree.nodes))
+        self.assertTrue(pbr.inputs['Roughness'].is_linked)
+        self.assertTrue(pbr.inputs['Metallic'].is_linked)
+        # AO half of the packed map darkens Base Color through a Mix node
+        self.assertTrue(pbr.inputs['Base Color'].is_linked)
+        self.assertTrue(pbr.inputs['Alpha'].is_linked)
+        self.assertEqual(mat.surface_render_method, 'DITHERED')
+
+    def test_udim_file_loads_tiled(self):
+        obj, mat = self.plane('sword')
+        with tempfile.TemporaryDirectory() as directory:
+            self.import_files(directory, 'sword_albedo_1001.png')
+        img = self.pbr(mat).inputs['Base Color'].links[0].from_node.image
+        self.assertEqual(img.source, 'TILED')
+
+
 class CompatLayer(unittest.TestCase):
     """Version-agnostic invariants of bakelab_compat, run on every build."""
 
@@ -1247,6 +1339,7 @@ if __name__ == '__main__':
                 loader.loadTestsFromTestCase(HeadlessBaking),
                 loader.loadTestsFromTestCase(NamePairBaking),
                 loader.loadTestsFromTestCase(Cleanup),
+                loader.loadTestsFromTestCase(TextureImport),
                 loader.loadTestsFromTestCase(CompatLayer),
             ])
             result = unittest.TextTestRunner(verbosity=2).run(suite)

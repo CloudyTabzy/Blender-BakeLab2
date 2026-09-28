@@ -7,7 +7,7 @@ creates the images, prepares the materials, bakes every map and packs or
 saves the results — all from one button.
 
 Compatible with **Blender 4.2 LTS → 5.2** from a single build ·
-Current release **3.4.0** · [Changelog](CHANGELOG.md)
+Current release **3.5.0** · [Changelog](CHANGELOG.md)
 
 **Fork:** https://github.com/CloudyTabzy/Blender-BakeLab2
 
@@ -29,6 +29,10 @@ Current release **3.4.0** · [Changelog](CHANGELOG.md)
 * **Clean Leftovers** recovers a scene after an interrupted bake —
   re-points stranded material copies to their originals and clears temp
   objects, nodes and a stuck bake state.
+* **Import Textures**: point at texture files named `sword_albedo.png` /
+  `sword_roughness.png` and they're loaded and wired into the matching
+  object's material — every PBR channel, AORM splitting, UDIM tiles, and
+  correct color spaces included.
 
 ### 🗺️ Maps for every pipeline
 
