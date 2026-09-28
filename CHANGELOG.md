@@ -16,6 +16,9 @@ or raising `blender_version_min`.
   shims, tools), `properties/` (scene settings, bake maps, baked data),
   `operators/` (all operators) and `ui/` (panel, map list). `__init__.py`
   now holds only `bl_info` and registration. No behavior change.
+- The extension zip now contains only the add-on code, the manifest and
+  the license — README, CHANGELOG, images, tests and lint config stay in
+  the repository but are excluded from installs.
 
 ## [3.0.0] - 2026-09-26
 
