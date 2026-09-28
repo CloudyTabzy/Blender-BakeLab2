@@ -144,7 +144,17 @@ class BakeLab_GenerateMaterials(Operator):
                 links.new(imgNode.outputs['Color'],pbr.inputs['Transmission Weight'])
                 links.new(uvm.outputs['UV'],imgNode.inputs['Vector'])
                 pass_available = True
-                
+            if bake_map.type == 'Alpha':
+                imgNode = nodes.new(type = 'ShaderNodeTexImage')
+                imgNode.hide = True
+                imgNode.location = -1000, -400
+                imgNode.image = bake_image
+                links.new(imgNode.outputs['Color'],
+                          compat.input_socket(pbr, 'Alpha'))
+                links.new(uvm.outputs['UV'],imgNode.inputs['Vector'])
+                compat.enable_transparency(mat)
+                pass_available = True
+
             ###### Custom Passes{
             if bake_map.type == 'CustomPass':
                 ####### Find Pass Input Socket{
@@ -165,6 +175,8 @@ class BakeLab_GenerateMaterials(Operator):
                         links.new(imgNode.outputs['Color'], pass_input)
                         links.new(uvm.outputs['UV'],imgNode.inputs['Vector'])
                         node_y_shift -= 100
+                    if pass_input.name == 'Alpha':
+                        compat.enable_transparency(mat)
                     pass_available = True
                 ####### }
             ###### }

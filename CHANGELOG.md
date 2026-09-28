@@ -10,6 +10,22 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+### Added
+
+- **Alpha bake map type**: bakes the material's opacity (wired Alpha
+  inputs, `Opacity`/`Transparency`/`Transparent` aliases, or a static
+  value) into a grayscale mask via an EMIT pass. Materials without an
+  alpha socket bake opaque; a Transparent BSDF leaf bakes clear.
+- **Wired-alpha detection**: when a bake runs and any source material has
+  an Alpha input fed by nodes — or a Transparent BSDF in the chain — the
+  baker adds an enabled Alpha map itself and reports it, unless one is
+  already in the map list.
+- *Generate Materials* wires a baked Alpha map (or a CustomPass baked
+  into `Alpha`) into the Principled BSDF's Alpha input and enables the
+  transparency render method (`surface_render_method` on 4.2+, legacy
+  `blend_method` before that) so the material is actually transparent in
+  Eevee too.
+
 ## [3.1.0] - 2026-09-28
 
 ### Changed

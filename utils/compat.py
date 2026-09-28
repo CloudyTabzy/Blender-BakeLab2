@@ -191,6 +191,15 @@ def find_socket_by_alias(node, aliases):
     return None
 
 
+def enable_transparency(material):
+    """Cycles respects shader alpha on its own; Eevee needs the material's
+    render method flipped. Blender 4.2+ calls it surface_render_method;
+    older builds had blend_method ('CLIP' was the cutout mode)."""
+    if hasattr(material, 'surface_render_method'):
+        material.surface_render_method = 'DITHERED'
+    elif hasattr(material, 'blend_method'):
+        material.blend_method = 'CLIP'
+
 def enable_nodes(material):
     """Turn on node editing for a freshly created material."""
     if not material.use_nodes:

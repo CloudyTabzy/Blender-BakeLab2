@@ -349,6 +349,73 @@ class BakeLabRegressions(_BakeLabTestBase):
         self.assertTrue(any('disabled' in m for m in self.reported_messages()),
                         self.reported_messages())
 
+    def wire_alpha(self, mat, value):
+        """Feed a constant into the Principled Alpha input, the way a cutout
+        material would have a mask texture wired in."""
+        bsdf = mat.node_tree.nodes['Principled BSDF']
+        node = mat.node_tree.nodes.new('ShaderNodeValue')
+        node.outputs[0].default_value = value
+        mat.node_tree.links.new(node.outputs[0], bsdf.inputs['Alpha'])
+
+    def covered_pixel(self, image):
+        # plane() scales UVs to the lower-left quadrant; pixel (4,4) is inside
+        return image.pixels[(4 * image.size[0] + 4) * 4]
+
+    def test_alpha_map_bakes_mask_and_wires_generated_material(self):
+        obj, mat = self.plane()
+        self.wire_alpha(mat, 0.25)
+        item = self.bake_map('Alpha')
+        item.color_space = 'Non-Color'  # apply_type_defaults does this
+        self.run_pipeline()
+        image = self.scene.BakeLab_Data[0].map_list[0].image
+        self.assertAlmostEqual(self.covered_pixel(image), 0.25, places=1)
+        self.assertEqual(bpy.ops.bakelab.generate_mats(), {'FINISHED'})
+        baked = obj.active_material
+        pbr = baked.node_tree.nodes.get('Principled BSDF')
+        self.assertTrue(pbr.inputs['Alpha'].is_linked)
+        self.assertEqual(baked.surface_render_method, 'DITHERED')
+
+    def test_bake_detects_wired_alpha_and_adds_map(self):
+        # Only an Albedo map configured, but the material has Alpha wired:
+        # the baker notices and adds the Alpha map itself.
+        obj, mat = self.plane()
+        self.wire_alpha(mat, 0.5)
+        self.bake_map()
+        self.run_pipeline()
+        self.assertEqual([m.type for m in self.scene.BakeLabMaps],
+                         ['Albedo', 'Alpha'])
+        self.assertTrue(any('Alpha' in m and 'detected' in m
+                            for m in self.reported_messages()),
+                        self.reported_messages())
+        self.assertEqual(len(self.scene.BakeLab_Data[0].map_list), 2)
+
+    def test_alpha_map_without_alpha_socket_bakes_opaque(self):
+        # A leaf shader with no alpha socket means opaque, not black.
+        obj, mat = self.plane()
+        nodes = mat.node_tree.nodes
+        diffuse = nodes.new('ShaderNodeBsdfDiffuse')
+        out = nodes['Material Output']
+        mat.node_tree.links.new(diffuse.outputs[0], out.inputs['Surface'])
+        nodes.remove(nodes['Principled BSDF'])
+        item = self.bake_map('Alpha')
+        item.color_space = 'Non-Color'
+        self.run_pipeline()
+        image = self.scene.BakeLab_Data[0].map_list[0].image
+        self.assertAlmostEqual(self.covered_pixel(image), 1.0, places=1)
+
+    def test_alpha_map_with_transparent_leaf_bakes_clear(self):
+        obj, mat = self.plane()
+        nodes = mat.node_tree.nodes
+        transp = nodes.new('ShaderNodeBsdfTransparent')
+        out = nodes['Material Output']
+        mat.node_tree.links.new(transp.outputs[0], out.inputs['Surface'])
+        nodes.remove(nodes['Principled BSDF'])
+        item = self.bake_map('Alpha')
+        item.color_space = 'Non-Color'
+        self.run_pipeline()
+        image = self.scene.BakeLab_Data[0].map_list[0].image
+        self.assertAlmostEqual(self.covered_pixel(image), 0.0, places=1)
+
     def test_reused_image_preserves_pixels_outside_bake_uv(self):
         obj, _ = self.plane()
         item = self.bake_map()

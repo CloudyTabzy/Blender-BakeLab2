@@ -71,8 +71,13 @@ class Baker(Operator):
         'Glossy':       'GLOSSY',
         'Transmission': 'TRANSMISSION',
         'Subsurface':   'EMIT', # Subsurface Weight, SSS lighting is part of the Diffuse pass since 2.83
+        'Alpha':        'EMIT',
         'CustomPass':   'EMIT',
     }
+
+    # Socket names (casefolded) that hold a material's opacity
+    ALPHA_PASS_NAMES = ('Alpha,Opacity,Transparency,Transparent')
+    ALPHA_SOCKET_NAMES = {'alpha', 'opacity', 'transparency', 'transparent'}
 
     def save_defaults(self, context):
         scene = context.scene
@@ -199,19 +204,25 @@ class Baker(Operator):
         bake_settings.cage_object              = self.default_cage_object
         # }
     
-    def passes_to_rgb(self, node, src_socket, nodes, links, passes):
+    def passes_to_rgb(self, node, src_socket, nodes, links, passes,
+                      fallback=(0, 0, 0, 0)):
         has_bsdf_inputs = False
         for input in node.inputs:
             if input.type == 'SHADER':
                 has_bsdf_inputs = True
                 if len(input.links):
                     self.passes_to_rgb(input.links[0].from_node, input,
-                                    nodes, links, passes)
+                                    nodes, links, passes, fallback)
         
         if not has_bsdf_inputs:
             emit = nodes.new(type = 'ShaderNodeEmission')
             emit_color = compat.input_socket(emit, 'Color', 0)
-            emit_color.default_value = 0, 0, 0, 0
+            # A leaf without a matching socket bakes the fallback; Transparent
+            # BSDF is the one leaf that means transparent rather than opaque.
+            if node.bl_idname == 'ShaderNodeBsdfTransparent':
+                emit_color.default_value = 0, 0, 0, 0
+            else:
+                emit_color.default_value = fallback
             links.new(compat.output_socket(emit, 'Emission', 0), src_socket)
             ####### Find Pass Input Socket{
             # Names are in priority order, so the first one the node has wins;
@@ -239,7 +250,7 @@ class Baker(Operator):
                         emit_color.default_value[2] = pass_input.default_value
                         emit_color.default_value[3] = 1
     
-    def passes_to_emit_node(self, mat, passes):
+    def passes_to_emit_node(self, mat, passes, fallback=(0, 0, 0, 0)):
         nodes = mat.node_tree.nodes
         links = mat.node_tree.links
         
@@ -250,12 +261,12 @@ class Baker(Operator):
             split_passes = passes.split(',')
             for i in range(len(split_passes)):
                 split_passes[i] = split_passes[i].strip().casefold()
-            self.passes_to_rgb(out, None, nodes, links, split_passes)
+            self.passes_to_rgb(out, None, nodes, links, split_passes, fallback)
         else:
         #### Create Default Texture Nodes
             out = nodes.new(type = 'ShaderNodeOutputMaterial')
             emit = nodes.new(type = 'ShaderNodeEmission')
-            compat.input_socket(emit, 'Color', 0).default_value = 0, 0, 0, 0
+            compat.input_socket(emit, 'Color', 0).default_value = fallback
             links.new(compat.output_socket(emit, 'Emission', 0),
                       compat.input_socket(out, 'Surface', 0))
             
@@ -787,6 +798,11 @@ class Baker(Operator):
                 if map.type == 'Subsurface':
                     self.ungroup_nodes(mat.node_tree)
                     self.passes_to_emit_node(mat, 'Subsurface Weight,Subsurface')
+                if map.type == 'Alpha':
+                    self.ungroup_nodes(mat.node_tree)
+                    # A leaf with no alpha socket means opaque, not transparent
+                    self.passes_to_emit_node(mat, self.ALPHA_PASS_NAMES,
+                                             fallback=(1, 1, 1, 1))
                 if map.type == 'Displacement':
                     self.displacement_to_color(mat)
                     
@@ -1016,6 +1032,17 @@ class Baker(Operator):
                                   % len(scene.BakeLabMaps))
             yield -1
             return
+
+        # A wired Alpha input on any source material means opacity matters:
+        # the Alpha map captures it, so add one unless the user already has.
+        if not any(map.type == 'Alpha' for map in scene.BakeLabMaps) \
+                and self.jobs_have_wired_alpha(jobs, props.bake_mode):
+            item = scene.BakeLabMaps.add()
+            apply_type_defaults(item, 'Alpha')
+            props.baking_map_count += 1
+            self.report(type = {'INFO'},
+                        message = 'Wired Alpha input detected - added an Alpha '
+                                  'map ("%s") to capture it' % item.img_name)
         props.baking_job_index = 0
         props.baking_job_count = len(jobs)
         failed_jobs = []
@@ -1107,6 +1134,35 @@ class Baker(Operator):
                               % (item.type, item.img_name,
                                  item.width, item.height, item.samples))
         return True
+
+    def material_has_wired_alpha(self, mat):
+        """True when the material's opacity depends on nodes: an alpha-named
+        value socket with a live link, or a Transparent BSDF that feeds
+        something. Leaf-level scan - the bake itself handles node groups."""
+        if mat is None or not getattr(mat, 'use_nodes', False) \
+                or mat.node_tree is None:
+            return False
+        for node in mat.node_tree.nodes:
+            if node.bl_idname == 'ShaderNodeBsdfTransparent' \
+                    and node.outputs and node.outputs[0].is_linked:
+                return True
+            for socket in node.inputs:
+                if socket.type == 'VALUE' and socket.is_linked \
+                        and (socket.name.casefold() in self.ALPHA_SOCKET_NAMES
+                             or socket.identifier.casefold() in self.ALPHA_SOCKET_NAMES):
+                    return True
+        return False
+
+    def jobs_have_wired_alpha(self, jobs, bake_mode):
+        for job in jobs:
+            # Selected to Active bakes the sources' alpha, not the target's
+            objects = (o for o in job.objects if o is not job.active_object) \
+                      if bake_mode == 'TO_ACTIVE' else job.objects
+            for obj in objects:
+                for slot in obj.material_slots:
+                    if self.material_has_wired_alpha(slot.material):
+                        return True
+        return False
 
     def build_jobs(self, context):
         """The bake queue. Pre-bake validation errors raise RuntimeError with

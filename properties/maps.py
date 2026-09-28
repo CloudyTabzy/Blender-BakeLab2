@@ -16,6 +16,7 @@ MAP_TYPE_ITEMS = (
                 ('Diffuse',     'Diffuse',''),
                 ('Subsurface',  'Subsurface','Subsurface Weight of the material'),
                 ('Transmission','Transmission',''),
+                ('Alpha',       'Alpha','Opacity of the material (wired Alpha inputs)'),
                 ('Shadow',      'Shadow',''),
                 ('Environment', 'Environment',''),
                 ('UV',          'UV',''),
@@ -246,6 +247,10 @@ def apply_type_defaults(item, map_type):
     if map_type == 'Transmission':
         item.img_name = '*_a'
         item.samples  = 8
+    if map_type == 'Alpha':
+        item.img_name = '*_alpha'
+        item.samples  = 4
+        item.color_space = 'Non-Color'
     if map_type == 'UV':
         item.img_name = '*_uv'
         item.samples  = 1
