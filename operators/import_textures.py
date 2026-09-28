@@ -11,31 +11,12 @@ from bpy.props import (
         )
 
 from ..utils import compat
+from ..utils.tools import CHANNEL_ALIASES, DATA_CHANNELS
+from ..properties.prefs import addon_preferences, import_alias_map
 
 
 IMAGE_EXTENSIONS = ('.png', '.jpg', '.jpeg', '.tif', '.tiff', '.exr',
                     '.bmp', '.tga', '.webp', '.hdr')
-
-# Filename suffix token -> channel; aliases cover common pipelines
-# (Substance 'basecolor', Marmoset-style 'albedo', Unity 'metallic'...).
-# 'color' channels carry a view transform; everything else is raw data.
-CHANNEL_SPECS = (
-    ('aorm',         ('aorm', 'orm'),                                   True),
-    ('basecolor',    ('basecolor', 'base_color', 'albedo', 'diffuse',
-                      'diff', 'col', 'color', 'base'),                  False),
-    ('normal',       ('normal', 'nrm', 'nor'),                          True),
-    ('roughness',    ('roughness', 'rough'),                            True),
-    ('metallic',     ('metallic', 'metal', 'metalness'),                True),
-    ('specular',     ('specular', 'spec'),                              True),
-    ('emission',     ('emission', 'emissive', 'emit', 'glow'),          False),
-    ('alpha',        ('alpha', 'opacity'),                              True),
-    ('ao',           ('ao', 'occlusion', 'ambientocclusion'),           True),
-    ('displacement', ('height', 'displacement', 'disp', 'bump'),        True),
-)
-_CHANNEL_ALIASES = {alias: channel
-                    for channel, aliases, _ in CHANNEL_SPECS
-                    for alias in aliases}
-_DATA_CHANNELS = {channel for channel, _, is_data in CHANNEL_SPECS if is_data}
 
 _TOKEN_RE = re.compile(r'[_\-.]+')
 _TILE_RE = re.compile(r'\d{4}')
@@ -46,18 +27,21 @@ def normalize_name(name):
     return '_'.join(_TOKEN_RE.split(name.casefold()))
 
 
-def parse_texture_file(filename):
+def parse_texture_file(filename, extra_aliases=None):
     """'sword_low_albedo_1001.png' -> ('sword_low', 'basecolor', 1001).
 
-    The channel is the last token that names one; a trailing 4-digit token
-    before it is the UDIM tile number. Returns None when the filename has
-    no recognizable channel suffix."""
+    The channel is the last token that names one; `extra_aliases`
+    ({keyword: channel}) from the addon preferences are checked before
+    the builtin table. A trailing 4-digit token before it is the UDIM
+    tile number. Returns None when the filename has no recognizable
+    channel suffix."""
     stem, _ext = os.path.splitext(os.path.basename(filename))
     tokens = _TOKEN_RE.split(stem)
     tile = None
     if len(tokens) > 1 and _TILE_RE.fullmatch(tokens[-1]):
         tile = int(tokens.pop())
-    channel = _CHANNEL_ALIASES.get(tokens[-1].casefold()) if tokens else None
+    last = tokens[-1].casefold() if tokens else None
+    channel = (extra_aliases or {}).get(last) or CHANNEL_ALIASES.get(last)
     if channel is None:
         return None
     tokens.pop()
@@ -207,11 +191,12 @@ def target_materials(context, key):
 def import_textures(context, paths, report):
     """Wire image files into materials by filename: '<target>_<channel>.png'.
     Returns (wired, skipped) so callers/tests can assert on the outcome."""
+    extra_aliases = import_alias_map(context)
     targets = {}     # normalized object/material key -> [materials]
     wired = []       # (stem, channel, material name)
     skipped = []     # (filename, reason)
     for path in sorted(paths):
-        parsed = parse_texture_file(path)
+        parsed = parse_texture_file(path, extra_aliases)
         if parsed is None:
             skipped.append((os.path.basename(path), 'no known channel suffix'))
             continue
@@ -231,7 +216,7 @@ def import_textures(context, paths, report):
             image.source = 'TILED'  # Blender fills the remaining tiles
         compat.set_image_colorspace(
             image.colorspace_settings,
-            'Non-Color' if channel in _DATA_CHANNELS else 'sRGB')
+            'Non-Color' if channel in DATA_CHANNELS else 'sRGB')
         stem = os.path.splitext(os.path.basename(path))[0]
         for mat in mats:
             wire_channel(mat, stem, channel, image)
@@ -268,4 +253,38 @@ class BakeLab_ImportTextures(Operator, ImportHelper):
             self.report(type={'ERROR'}, message='No image files selected')
             return {'CANCELLED'}
         import_textures(context, paths, self.report)
+        return {'FINISHED'}
+
+
+class BakeLab_ImportAliasAdd(Operator):
+    """Add a custom filename-suffix -> channel rule to the preferences"""
+    bl_label = 'Add import alias'
+    bl_idname = 'bakelab.import_alias_add'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        prefs = addon_preferences(context)
+        if prefs is None:
+            return {'CANCELLED'}
+        prefs.import_aliases.add()
+        prefs.import_aliases_index = len(prefs.import_aliases) - 1
+        return {'FINISHED'}
+
+
+class BakeLab_ImportAliasRemove(Operator):
+    """Remove the active import alias"""
+    bl_label = 'Remove import alias'
+    bl_idname = 'bakelab.import_alias_remove'
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @classmethod
+    def poll(cls, context):
+        prefs = addon_preferences(context)
+        return prefs is not None and len(prefs.import_aliases) > 0
+
+    def execute(self, context):
+        prefs = addon_preferences(context)
+        index = prefs.import_aliases_index
+        prefs.import_aliases.remove(index)
+        prefs.import_aliases_index = min(index, len(prefs.import_aliases) - 1)
         return {'FINISHED'}

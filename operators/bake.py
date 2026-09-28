@@ -21,7 +21,11 @@ from ..utils.tools import (
 )
 from ..utils import compat
 from ..properties.maps import apply_type_defaults
-from ..properties.prefs import addon_preferences, apply_gpu_backend
+from ..properties.prefs import (
+            addon_preferences,
+            apply_gpu_backend,
+            map_default_overrides
+        )
 from ..properties.sets import sets_membership
     
 def iter_child_collections(collection):
@@ -1127,7 +1131,8 @@ class Baker(Operator):
         if not any(map.type == 'Alpha' for map in scene.BakeLabMaps) \
                 and self.jobs_have_wired_alpha(jobs, props.bake_mode):
             item = scene.BakeLabMaps.add()
-            apply_type_defaults(item, 'Alpha')
+            apply_type_defaults(item, 'Alpha',
+                                overrides=map_default_overrides(context, 'Alpha'))
             props.baking_map_count += 1
             self.report(type = {'INFO'},
                         message = 'Wired Alpha input detected - added an Alpha '
@@ -1216,7 +1221,8 @@ class Baker(Operator):
                         message = 'Objects need a UV map before baking: ' + names)
             return False
         item = context.scene.BakeLabMaps.add()
-        apply_type_defaults(item, 'Albedo')
+        apply_type_defaults(item, 'Albedo',
+                            overrides=map_default_overrides(context, 'Albedo'))
         self.report(type = {'INFO'},
                     message = 'No bake maps configured - added a default %s map '
                               '("%s", %dx%d, %d samples); adjust or add more in '

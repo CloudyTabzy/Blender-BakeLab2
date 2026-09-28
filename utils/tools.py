@@ -74,3 +74,27 @@ def pair_high_low(objects):
     return [(low, [obj for obj, hbase, hvar in highs
                    if hbase == base and (variant == hvar or not variant or not hvar)])
             for low, base, variant in sorted(lows, key=lambda e: e[0].name)]
+
+
+# Texture-import filename suffix token -> channel; aliases cover common
+# pipelines (Substance 'basecolor', Marmoset-style 'albedo', Unity
+# 'metallic'...). 'color' channels carry a view transform; everything
+# else is raw data. The texture importer consumes this table and the
+# addon preferences enumerate it for user aliases.
+CHANNEL_SPECS = (
+    ('aorm',         ('aorm', 'orm'),                                   True),
+    ('basecolor',    ('basecolor', 'base_color', 'albedo', 'diffuse',
+                      'diff', 'col', 'color', 'base'),                  False),
+    ('normal',       ('normal', 'nrm', 'nor'),                          True),
+    ('roughness',    ('roughness', 'rough'),                            True),
+    ('metallic',     ('metallic', 'metal', 'metalness'),                True),
+    ('specular',     ('specular', 'spec'),                              True),
+    ('emission',     ('emission', 'emissive', 'emit', 'glow'),          False),
+    ('alpha',        ('alpha', 'opacity'),                              True),
+    ('ao',           ('ao', 'occlusion', 'ambientocclusion'),           True),
+    ('displacement', ('height', 'displacement', 'disp', 'bump'),        True),
+)
+CHANNEL_ALIASES = {alias: channel
+                   for channel, aliases, _ in CHANNEL_SPECS
+                   for alias in aliases}
+DATA_CHANNELS = {channel for channel, _, is_data in CHANNEL_SPECS if is_data}

@@ -211,86 +211,51 @@ class BakeLabMap(PropertyGroup):
     combined_emit              : BoolProperty(name = 'Emit',         default = True)
 
 
-def apply_type_defaults(item, map_type):
+MAP_TYPE_DEFAULTS = {
+    'Albedo':       {'img_name': '*_t',      'samples': 4},
+    'Combined':     {'img_name': '*_c',      'samples': 64},
+    'Normal':       {'img_name': '*_n',      'samples': 16,
+                     'color_space': 'Non-Color', 'aa_override': 1},
+    'Displacement': {'img_name': '*_h',      'samples': 4,
+                     'color_space': 'Non-Color'},
+    'AO':           {'img_name': '*_ao',     'samples': 64,
+                     'color_space': 'Non-Color'},
+    'AORM':         {'img_name': '*_aorm',   'samples': 64,
+                     'color_space': 'Non-Color'},
+    'Shadow':       {'img_name': '*_sh',     'samples': 32},
+    'Glossy':       {'img_name': '*_s',      'samples': 8},
+    'Roughness':    {'img_name': '*_r',      'samples': 4,
+                     'color_space': 'Non-Color'},
+    'Diffuse':      {'img_name': '*_d',      'samples': 8},
+    'Emission':     {'img_name': '*_e',      'samples': 4},
+    'Transmission': {'img_name': '*_a',      'samples': 8},
+    'Alpha':        {'img_name': '*_alpha',  'samples': 4,
+                     'color_space': 'Non-Color'},
+    'Metallic':     {'img_name': '*_m',      'samples': 4,
+                     'color_space': 'Non-Color'},
+    'MatID':        {'img_name': '*_id',     'samples': 1,
+                     'color_space': 'Non-Color'},
+    'Position':     {'img_name': '*_pos',    'samples': 1,
+                     'color_space': 'Non-Color', 'file_format': 'OPEN_EXR'},
+    'UV':           {'img_name': '*_uv',     'samples': 1},
+    'UVGrid':       {'img_name': '*_uvgrid', 'samples': 1},
+    'ColorGrid':    {'img_name': '*_cgrid',  'samples': 1},
+    'Environment':  {'img_name': '*_env',    'samples': 16},
+    'Subsurface':   {'img_name': '*_sss',    'samples': 4,
+                     'color_space': 'Non-Color'},
+    'CustomPass':   {'img_name': '*_pass',   'samples': 4,
+                     'color_space': 'Non-Color'},
+}
+
+
+def apply_type_defaults(item, map_type, overrides=None):
     """Type-specific defaults for a bake-map item, shared by the Add Map
-    operator and the default map the baker inserts when none is configured."""
+    operator and the default map the baker inserts when none is configured.
+    `overrides` (e.g. from the addon preferences' map-defaults table) wins
+    over the shipped values for any field it names."""
     item.type = map_type
-    if map_type == 'Albedo':
-        item.img_name = '*_t'
-        item.samples  = 4
-    if map_type == 'Combined':
-        item.img_name = '*_c'
-        item.samples  = 64
-    if map_type == 'Normal':
-        item.img_name = '*_n'
-        item.samples  = 16
-        item.color_space = 'Non-Color'
-        item.aa_override = 1 #Because cycles has buildin anti-aliasing for normals
-    if map_type == 'Displacement':
-        item.img_name = '*_h'
-        item.samples  = 4
-        item.color_space = 'Non-Color'
-    if map_type == 'AO':
-        item.img_name = '*_ao'
-        item.samples  = 64
-        item.color_space = 'Non-Color'
-    if map_type == 'AORM':
-        item.img_name = '*_aorm'
-        item.samples  = 64
-        item.color_space = 'Non-Color'
-    if map_type == 'Shadow':
-        item.img_name = '*_sh'
-        item.samples  = 32
-    if map_type == 'Glossy':
-        item.img_name = '*_s'
-        item.samples  = 8
-    if map_type == 'Roughness':
-        item.img_name = '*_r'
-        item.samples  = 4
-        item.color_space = 'Non-Color'
-    if map_type == 'Diffuse':
-        item.img_name = '*_d'
-        item.samples  = 8
-    if map_type == 'Emission':
-        item.img_name = '*_e'
-        item.samples  = 4
-    if map_type == 'Transmission':
-        item.img_name = '*_a'
-        item.samples  = 8
-    if map_type == 'Alpha':
-        item.img_name = '*_alpha'
-        item.samples  = 4
-        item.color_space = 'Non-Color'
-    if map_type == 'Metallic':
-        item.img_name = '*_m'
-        item.samples  = 4
-        item.color_space = 'Non-Color'
-    if map_type == 'MatID':
-        item.img_name = '*_id'
-        item.samples  = 1
-        item.color_space = 'Non-Color'
-    if map_type == 'Position':
-        item.img_name = '*_pos'
-        item.samples  = 1
-        item.color_space = 'Non-Color'
-        item.file_format = 'OPEN_EXR'
-    if map_type == 'UV':
-        item.img_name = '*_uv'
-        item.samples  = 1
-    if map_type == 'UVGrid':
-        item.img_name = '*_uvgrid'
-        item.samples  = 1
-    if map_type == 'ColorGrid':
-        item.img_name = '*_cgrid'
-        item.samples  = 1
-    if map_type == 'Environment':
-        item.img_name = '*_env'
-        item.samples  = 16
-    if map_type == 'Subsurface':
-        item.img_name = '*_sss'
-        item.samples  = 4
-        item.color_space = 'Non-Color'
-    if map_type == 'CustomPass':
-        item.img_name = '*_pass'
-        item.samples  = 4
-        item.color_space = 'Non-Color'
+    spec = dict(MAP_TYPE_DEFAULTS.get(map_type, {}))
+    if overrides:
+        spec.update(overrides)
+    for field, value in spec.items():
+        setattr(item, field, value)

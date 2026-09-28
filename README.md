@@ -7,7 +7,7 @@ creates the images, prepares the materials, bakes every map and packs or
 saves the results — all from one button.
 
 Compatible with **Blender 4.2 LTS → 5.2** from a single build ·
-Current release **3.8.0** · [Changelog](CHANGELOG.md)
+Current release **3.9.0** · [Changelog](CHANGELOG.md)
 
 **Fork:** https://github.com/CloudyTabzy/Blender-BakeLab2
 
@@ -70,6 +70,9 @@ Current release **3.8.0** · [Changelog](CHANGELOG.md)
 * **Pick your GPU backend** — the add-on preferences expose Cycles'
   compute backends (OptiX, CUDA, HIP, oneAPI, Metal — whatever your
   machine offers), applied automatically whenever Device is GPU Compute.
+* **Make the defaults yours** — preferences hold per-type map defaults
+  (name patterns, samples, color space) and custom texture-import
+  aliases, so BakeLab adapts to your naming conventions, not the reverse.
 * Ships as an official **Blender extension** — install from disk and go.
 
 ![Screenshot](images/bakelab_screen.png)

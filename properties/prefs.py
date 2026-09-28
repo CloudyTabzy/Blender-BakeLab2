@@ -1,5 +1,10 @@
-from bpy.types import AddonPreferences
-from bpy.props import EnumProperty
+from bpy.types import AddonPreferences, PropertyGroup
+from bpy.props import (
+            CollectionProperty,
+            EnumProperty,
+            IntProperty,
+            StringProperty
+        )
 
 # properties/prefs.py lives one level under the package root, so the
 # registered add-on module name is the parent ('bl_ext.<repo>.bakelab',
@@ -56,6 +61,76 @@ def _gpu_backend_update(self, context):
     apply_gpu_backend(self, context)
 
 
+def import_channel_items(self, context):
+    from ..utils.tools import CHANNEL_SPECS
+    return [(channel, channel.title(), '') for channel, _, _ in CHANNEL_SPECS]
+
+
+class BakeLabMapDefault(PropertyGroup):
+    """Per-type overrides for the Add Map operator and the auto-added
+    default map. Rows are seeded from MAP_TYPE_DEFAULTS and persist."""
+    type       : StringProperty(name = 'Type')
+    img_name   : StringProperty(name = 'Name', default = '*',
+                    description = 'Image name pattern; * is the job name')
+    samples    : IntProperty(name = 'Samples', default = 4, min = 1,
+                    soft_max = 512)
+    color_space: EnumProperty(name = 'Color Space',
+                    items = (('sRGB', 'sRGB', ''),
+                             ('Non-Color', 'Non-Color', '')),
+                    default = 'sRGB')
+
+
+class BakeLabImportAlias(PropertyGroup):
+    """An extra filename suffix the texture importer treats as a channel,
+    e.g. keyword 'msk' -> 'alpha'. Checked before the builtin aliases."""
+    keyword: StringProperty(name = 'Keyword')
+    channel: EnumProperty(name = 'Channel', items = import_channel_items)
+
+
+def seed_map_defaults(prefs):
+    """Populate the defaults table from the shipped values. Only missing
+    types are added, so a new map type in a later version appears in an
+    existing table without resetting user edits."""
+    from .maps import MAP_TYPE_ITEMS, MAP_TYPE_DEFAULTS
+    have = {row.type for row in prefs.map_defaults}
+    for item in MAP_TYPE_ITEMS:
+        if item is None or item[0] in have:
+            continue
+        map_type = item[0]
+        spec = MAP_TYPE_DEFAULTS.get(map_type, {})
+        row = prefs.map_defaults.add()
+        row.type = map_type
+        row.img_name = spec.get('img_name', '*')
+        row.samples = spec.get('samples', 4)
+        row.color_space = spec.get('color_space', 'sRGB')
+
+
+def overrides_from_prefs(prefs, map_type):
+    row = next((r for r in prefs.map_defaults if r.type == map_type), None)
+    if row is None:
+        return None
+    return {'img_name': row.img_name, 'samples': row.samples,
+            'color_space': row.color_space}
+
+
+def map_default_overrides(context, map_type):
+    """Field overrides for apply_type_defaults, or None to keep shipped
+    defaults (add-on not registered, or the type has no seeded row)."""
+    prefs = addon_preferences(context)
+    return overrides_from_prefs(prefs, map_type) if prefs is not None else None
+
+
+def aliases_from_prefs(prefs):
+    return {a.keyword.casefold(): a.channel
+            for a in prefs.import_aliases if a.keyword}
+
+
+def import_alias_map(context):
+    """User keywords -> channel ids for parse_texture_file, or None."""
+    prefs = addon_preferences(context)
+    return aliases_from_prefs(prefs) if prefs is not None else None
+
+
 class BakeLabPreferences(AddonPreferences):
     bl_idname = _ROOT_PACKAGE
 
@@ -66,6 +141,10 @@ class BakeLabPreferences(AddonPreferences):
         items = gpu_backend_items,
         update = _gpu_backend_update,
     )
+    map_defaults      : CollectionProperty(type = BakeLabMapDefault)
+    map_defaults_index: IntProperty()
+    import_aliases    : CollectionProperty(type = BakeLabImportAlias)
+    import_aliases_index: IntProperty()
 
     def draw(self, context):
         layout = self.layout
@@ -73,3 +152,32 @@ class BakeLabPreferences(AddonPreferences):
         layout.prop(self, 'gpu_backend')
         if cycles_preferences(context) is None:
             layout.label(text = 'Cycles is not enabled', icon = 'ERROR')
+
+        seed_map_defaults(self)
+        box = layout.box()
+        box.label(text = 'Map defaults used by Add Map / auto-add')
+        row = box.row()
+        row.template_list("BAKELAB_DEFAULT_UL_list", "",
+                          self, "map_defaults", self, "map_defaults_index",
+                          rows = 5)
+        if 0 <= self.map_defaults_index < len(self.map_defaults):
+            entry = self.map_defaults[self.map_defaults_index]
+            col = box.column(align = True)
+            col.prop(entry, 'img_name')
+            col.prop(entry, 'samples')
+            col.prop(entry, 'color_space')
+        box.operator("bakelab.reset_map_defaults", icon = 'FILE_REFRESH')
+
+        box = layout.box()
+        box.label(text = 'Texture-import aliases - extra filename suffixes')
+        row = box.row()
+        row.template_list("BAKELAB_ALIAS_UL_list", "",
+                          self, "import_aliases", self, "import_aliases_index",
+                          rows = 3)
+        ops = row.column(align = True)
+        ops.operator("bakelab.import_alias_add", icon = 'ADD', text = "")
+        ops.operator("bakelab.import_alias_remove", icon = 'REMOVE', text = "")
+        if 0 <= self.import_aliases_index < len(self.import_aliases):
+            entry = self.import_aliases[self.import_aliases_index]
+            box.prop(entry, 'keyword')
+            box.prop(entry, 'channel')

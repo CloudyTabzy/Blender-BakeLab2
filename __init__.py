@@ -19,7 +19,7 @@ bl_info = {
     "author" : "Tabzy",
     "description" : "Bake textures easily",
     "blender" : (4, 2, 0),
-    "version" : (3, 8, 0),
+    "version" : (3, 9, 0),
     "location" : "View3D > Properties > BakeLab",
     "category" : "Baking"
 }
@@ -28,14 +28,14 @@ if "bpy" in locals():
     import importlib
     for _mod in (compat, tools, maps, baked_data, scene, prefs, sets,
                  bake, post, uv, map_ops, import_textures, texture_sets,
-                 panel, map_list, set_list):
+                 panel, map_list, set_list, prefs_list):
         importlib.reload(_mod)
     del _mod
 else:
     from .utils import compat as compat, tools as tools
     from .properties import maps, baked_data, scene, prefs, sets
     from .operators import bake, post, uv, maps as map_ops, import_textures, texture_sets
-    from .ui import panel, map_list, set_list
+    from .ui import panel, map_list, set_list, prefs_list
 
 import bpy
 
@@ -46,6 +46,8 @@ from bpy.props import (
         )
 
 classes = (
+    prefs.BakeLabMapDefault,
+    prefs.BakeLabImportAlias,
     prefs.BakeLabPreferences,
     scene.BakeLabProperties,
 
@@ -66,6 +68,8 @@ classes = (
     post.BakeLab_Finish,
     post.BakeLab_Cleanup,
     import_textures.BakeLab_ImportTextures,
+    import_textures.BakeLab_ImportAliasAdd,
+    import_textures.BakeLab_ImportAliasRemove,
 
     texture_sets.BakeLab_TextureSetAdd,
     texture_sets.BakeLab_TextureSetRemove,
@@ -76,9 +80,12 @@ classes = (
     map_ops.BakeLabAddMapItem,
     map_ops.BakeLabRemoveMapItem,
     map_ops.BakeLabShowPassPresets,
+    map_ops.BakeLabResetMapDefaults,
 
     map_list.BakeLabMapListUI,
     set_list.BakeLabSetListUI,
+    prefs_list.BakeLabDefaultListUI,
+    prefs_list.BakeLabAliasListUI,
     panel.BakeLabUI
 )
 

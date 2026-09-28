@@ -8,6 +8,11 @@ from bpy.props import (
             FloatProperty
         )
 from ..properties.maps import MAP_TYPE_ITEMS, apply_type_defaults
+from ..properties.prefs import (
+            addon_preferences,
+            map_default_overrides,
+            seed_map_defaults
+        )
 
 class BakeLabAddMapItem(Operator):
     """Add a new bake map"""
@@ -117,7 +122,8 @@ class BakeLabAddMapItem(Operator):
             )
 
     def calcItemSettings(self,context,item):
-        apply_type_defaults(item, self.type)
+        apply_type_defaults(item, self.type,
+                            overrides=map_default_overrides(context, self.type))
 
     def draw(self,context):
         layout = self.layout
@@ -236,4 +242,24 @@ class BakeLabShowPassPresets(Operator):
             item = scene.BakeLabMaps[scene.BakeLabMapIndex]
             if item:
                 item.pass_name = self.pass_presets
+        return {'FINISHED'}
+
+
+class BakeLabResetMapDefaults(Operator):
+    """Restore the addon preferences' map-defaults table to the shipped
+    per-type values"""
+    bl_idname = "bakelab.reset_map_defaults"
+    bl_label = "Reset map defaults"
+    bl_options = {'REGISTER'}
+
+    @classmethod
+    def poll(cls, context):
+        return addon_preferences(context) is not None
+
+    def execute(self, context):
+        prefs = addon_preferences(context)
+        prefs.map_defaults.clear()
+        prefs.map_defaults_index = 0
+        seed_map_defaults(prefs)
+        self.report(type = {'INFO'}, message = 'Map defaults reset')
         return {'FINISHED'}

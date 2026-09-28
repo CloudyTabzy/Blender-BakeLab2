@@ -10,6 +10,27 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+## [3.9.0] - 2026-09-28
+
+### Added
+
+- **Map defaults in the addon preferences**: every bake-map type gets an
+  editable row — name pattern (`*`), sample count and color space —
+  applied by Add Map, the auto-added default map and the auto-detected
+  Alpha map. Rows seed from the shipped defaults on first view and a
+  **Reset** button restores them; a map type introduced by a later
+  version slots into an existing table without touching user edits.
+- **Texture-import aliases** in the preferences: extra
+  filename-suffix → channel rules (e.g. `msk` → alpha) that are checked
+  before the builtin table, so project naming conventions work without
+  renaming files.
+
+### Changed
+
+- Per-type bake-map defaults now live in a shared `MAP_TYPE_DEFAULTS`
+  table (`properties/maps.py`), and the importer's channel table moved
+  to `utils/tools.py` so both the importer and preferences share it.
+
 ## [3.8.0] - 2026-09-28
 
 ### Added
@@ -203,7 +224,8 @@ or raising `blender_version_min`.
     "Shader" inputs) bind to the intended socket on every version;
   - saved images keep their exact colors on all supported versions.
 
-[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.8...HEAD
+[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.9...HEAD
+[3.9.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.8...v3.9
 [3.8.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.7...v3.8
 [3.7.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.6...v3.7
 [3.6.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.5...v3.6

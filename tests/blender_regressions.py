@@ -1367,11 +1367,11 @@ class TextureSets(_BakeLabTestBase):
         self.assertFalse(self.scene.BakeLabTextureSets[1].has_object(a))
 
 
-class AddonPrefs(unittest.TestCase):
-    """The BakeLabPreferences GPU backend writes through to the Cycles
-    addon preferences. (preferences.addons has no entry here because the
-    suite registers classes directly, so the helpers are exercised with a
-    stand-in prefs object.)"""
+class AddonPrefs(_BakeLabTestBase):
+    """BakeLabPreferences: GPU backend write-through, per-type map
+    defaults and texture-import aliases. (preferences.addons has no
+    entry here because the suite registers classes directly, so the
+    helpers are exercised with a stand-in prefs object.)"""
 
     def test_gpu_backend_items_and_apply(self):
         prefs_mod = ADDON.properties.prefs
@@ -1397,6 +1397,55 @@ class AddonPrefs(unittest.TestCase):
         prefs.gpu_backend = 'NOT_A_BACKEND'
         prefs_mod.apply_gpu_backend(prefs, bpy.context)
         self.assertEqual(cycles.compute_device_type, before)
+
+    def test_map_default_overrides(self):
+        prefs_mod = ADDON.properties.prefs
+        apply_defaults = ADDON.properties.maps.apply_type_defaults
+        prefs = SimpleNamespace(map_defaults=[
+            SimpleNamespace(type='Albedo', img_name='*_base',
+                            samples=9, color_space='Non-Color')])
+        overrides = prefs_mod.overrides_from_prefs(prefs, 'Albedo')
+        self.assertEqual(overrides, {'img_name': '*_base', 'samples': 9,
+                                     'color_space': 'Non-Color'})
+        # a type without a row keeps shipped defaults
+        self.assertIsNone(prefs_mod.overrides_from_prefs(prefs, 'Normal'))
+        # overrides land on the map item
+        item = self.scene.BakeLabMaps.add()
+        apply_defaults(item, 'Albedo', overrides=overrides)
+        self.assertEqual((item.img_name, item.samples, item.color_space),
+                         ('*_base', 9, 'Non-Color'))
+        # no addon entry under the suite -> None keeps shipped defaults
+        self.assertIsNone(prefs_mod.map_default_overrides(bpy.context, 'Albedo'))
+        item2 = self.scene.BakeLabMaps.add()
+        apply_defaults(item2, 'Roughness')
+        self.assertEqual(item2.color_space, 'Non-Color')
+
+    def test_custom_import_alias(self):
+        parse = ADDON.operators.import_textures.parse_texture_file
+        self.assertEqual(parse('sword_msk.png', {'msk': 'alpha'}),
+                         ('sword', 'alpha', None))
+        # user aliases are checked before the builtin table
+        self.assertEqual(parse('sword_col.png', {'col': 'metallic'}),
+                         ('sword', 'metallic', None))
+        self.assertEqual(parse('sword_col.png')[1], 'basecolor')
+        self.assertIsNone(parse('sword_msk.png'))
+
+    def test_map_default_seeding_preserves_edits(self):
+        class FakeColl(list):
+            def add(self):
+                row = SimpleNamespace()
+                self.append(row)
+                return row
+        prefs_mod = ADDON.properties.prefs
+        prefs = SimpleNamespace(map_defaults=FakeColl())
+        prefs_mod.seed_map_defaults(prefs)
+        types = [i[0] for i in ADDON.properties.maps.MAP_TYPE_ITEMS if i]
+        self.assertEqual(len(prefs.map_defaults), len(types))
+        # re-seeding doesn't overwrite user edits, only fills new types
+        prefs.map_defaults[0].img_name = '*_custom'
+        prefs_mod.seed_map_defaults(prefs)
+        self.assertEqual(len(prefs.map_defaults), len(types))
+        self.assertEqual(prefs.map_defaults[0].img_name, '*_custom')
 
 
 class CompatLayer(unittest.TestCase):
