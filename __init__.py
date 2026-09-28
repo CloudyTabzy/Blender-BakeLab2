@@ -19,22 +19,23 @@ bl_info = {
     "author" : "Tabzy",
     "description" : "Bake textures easily",
     "blender" : (4, 2, 0),
-    "version" : (3, 7, 0),
+    "version" : (3, 8, 0),
     "location" : "View3D > Properties > BakeLab",
     "category" : "Baking"
 }
 
 if "bpy" in locals():
     import importlib
-    for _mod in (compat, tools, maps, baked_data, scene, prefs,
-                 bake, post, uv, map_ops, import_textures, panel, map_list):
+    for _mod in (compat, tools, maps, baked_data, scene, prefs, sets,
+                 bake, post, uv, map_ops, import_textures, texture_sets,
+                 panel, map_list, set_list):
         importlib.reload(_mod)
     del _mod
 else:
     from .utils import compat as compat, tools as tools
-    from .properties import maps, baked_data, scene, prefs
-    from .operators import bake, post, uv, maps as map_ops, import_textures
-    from .ui import panel, map_list
+    from .properties import maps, baked_data, scene, prefs, sets
+    from .operators import bake, post, uv, maps as map_ops, import_textures, texture_sets
+    from .ui import panel, map_list, set_list
 
 import bpy
 
@@ -48,6 +49,8 @@ classes = (
     prefs.BakeLabPreferences,
     scene.BakeLabProperties,
 
+    sets.BakeLabTextureSetMember,
+    sets.BakeLabTextureSet,
     maps.BakeLabMap,
     baked_data.BakeObjData,
     baked_data.BakeMapData,
@@ -64,11 +67,18 @@ classes = (
     post.BakeLab_Cleanup,
     import_textures.BakeLab_ImportTextures,
 
+    texture_sets.BakeLab_TextureSetAdd,
+    texture_sets.BakeLab_TextureSetRemove,
+    texture_sets.BakeLab_TextureSetAssign,
+    texture_sets.BakeLab_TextureSetUnassign,
+    texture_sets.BakeLab_TextureSetSelect,
+
     map_ops.BakeLabAddMapItem,
     map_ops.BakeLabRemoveMapItem,
     map_ops.BakeLabShowPassPresets,
 
     map_list.BakeLabMapListUI,
+    set_list.BakeLabSetListUI,
     panel.BakeLabUI
 )
 
@@ -80,12 +90,15 @@ def register():
     bpy.types.Scene.BakeLabMaps = CollectionProperty(type = maps.BakeLabMap)
     bpy.types.Scene.BakeLab_Data = CollectionProperty(type = baked_data.BakeLab_BakedData)
     bpy.types.Scene.BakeLabMapIndex = IntProperty(name = 'BakeLab Map List Index')
+    bpy.types.Scene.BakeLabTextureSets = CollectionProperty(type = sets.BakeLabTextureSet)
+    bpy.types.Scene.BakeLabTextureSetIndex = IntProperty(name = 'BakeLab Texture Set Index')
 
 def unregister():
     # Delete scene properties before the classes they point at, and
     # tolerate a partially torn-down RNA when Blender calls this during
     # shutdown (unregister_class can then raise "missing bl_rna").
-    for prop in ("BakeLabProps", "BakeLabMaps", "BakeLab_Data", "BakeLabMapIndex"):
+    for prop in ("BakeLabProps", "BakeLabMaps", "BakeLab_Data", "BakeLabMapIndex",
+                 "BakeLabTextureSets", "BakeLabTextureSetIndex"):
         if hasattr(bpy.types.Scene, prop):
             delattr(bpy.types.Scene, prop)
 

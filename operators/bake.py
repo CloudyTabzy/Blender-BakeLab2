@@ -22,6 +22,7 @@ from ..utils.tools import (
 from ..utils import compat
 from ..properties.maps import apply_type_defaults
 from ..properties.prefs import addon_preferences, apply_gpu_backend
+from ..properties.sets import sets_membership
     
 def iter_child_collections(collection):
     for child in collection.children:
@@ -1294,7 +1295,8 @@ class Baker(Operator):
         props = context.scene.BakeLabProps
         source = props.batch_source
         if props.bake_mode == 'TO_ACTIVE' and source not in ('SELECTION', 'NAME_PAIRS'):
-            raise RuntimeError('Selected to Active baking needs the Selection batch source')
+            raise RuntimeError('Selected to Active baking needs the Selection or '
+                               'High-Low Pairs batch source')
         if source == 'MATERIAL' and props.bake_mode == 'ALL_TO_ONE' and props.pre_join_mesh:
             # Joining drops material slots, so faces can no longer be attributed
             # to a material job.
@@ -1378,6 +1380,33 @@ class Baker(Operator):
             return [BakeJob(low.name, [low, *highs], active_object = low,
                             image_name = low.name, mode = 'TO_ACTIVE')
                     for low, highs in matched]
+
+        if source == 'TEXTURE_SETS':
+            # A texture set is a named group sharing one image set; each
+            # enabled set bakes All To One regardless of the UI bake mode.
+            membership, duplicates = sets_membership(context.scene)
+            if duplicates:
+                self.report(type = {'INFO'},
+                            message = 'Objects in multiple sets bake under the first: '
+                                      + ', '.join(sorted(set(duplicates))))
+            jobs = []
+            for ts in context.scene.BakeLabTextureSets:
+                if not ts.enabled:
+                    continue
+                objects = [obj for obj in
+                           (m.object for m in ts.objects)
+                           if obj is not None and membership.get(obj) == ts.name
+                           and IsValidMesh(self, obj)]
+                if len(objects) == 0:
+                    self.report(type = {'INFO'},
+                                message = 'Texture set "%s" has no valid mesh objects '
+                                          'and was skipped' % ts.name)
+                    continue
+                jobs.append(BakeJob(ts.name, objects, self.default_active_object,
+                                    image_name = ts.name, mode = 'ALL_TO_ONE'))
+            if len(jobs) == 0:
+                raise RuntimeError('No enabled texture sets with valid mesh objects')
+            return jobs
 
         # SCENE
         objects = [obj for obj in context.scene.collection.all_objects if IsValidMesh(self, obj)]

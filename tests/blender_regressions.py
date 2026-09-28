@@ -95,6 +95,8 @@ class _BakeLabTestBase(unittest.TestCase):
         self.scene = bpy.context.scene
         self.scene.BakeLab_Data.clear()
         self.scene.BakeLabMaps.clear()
+        self.scene.BakeLabTextureSets.clear()
+        self.scene.BakeLabTextureSetIndex = 0
         for objects in (bpy.data.objects, bpy.data.meshes, bpy.data.materials,
                         bpy.data.images, bpy.data.node_groups, bpy.data.textures):
             for item in list(objects):
@@ -822,7 +824,7 @@ class BatchBaking(_BakeLabTestBase):
             if result != {'RUNNING_MODAL'}:
                 break
         self.assertEqual(result, {'CANCELLED'})
-        self.assertTrue(any('Selected to Active baking needs the Selection batch source' in m
+        self.assertTrue(any('needs the Selection or High-Low Pairs batch source' in m
                             for m in self.reported_messages()), self.reported_messages())
 
     def test_batch_progress_props(self):
@@ -1296,6 +1298,75 @@ class GridMaps(_BakeLabTestBase):
         self.assertIsNone(bpy.data.images.get('BAKELAB_TMP_UVGRID'))
 
 
+class TextureSets(_BakeLabTestBase):
+    """Texture Sets: named object groups bake All To One into set-named
+    images; membership is one set per object, first set wins."""
+
+    def make_set(self, name, objects):
+        ts = self.scene.BakeLabTextureSets.add()
+        ts.name = name
+        for obj in objects:
+            ts.objects.add().object = obj
+        return ts
+
+    def test_sets_bake_into_set_named_images(self):
+        a, _ = self.plane('Hull')
+        b, _ = self.plane('Turret')
+        self.make_set('Vehicle', [a, b])
+        c, _ = self.plane('Rock')
+        self.make_set('Env', [c])
+        self.props.batch_source = 'TEXTURE_SETS'
+        self.bake_map()
+        self.run_pipeline()
+        names = sorted(d.map_list[0].image.name for d in self.scene.BakeLab_Data)
+        self.assertEqual(names, ['Env_Albedo', 'Vehicle_Albedo'])
+
+    def test_membership_is_single_and_first_wins(self):
+        a, _ = self.plane('Body')
+        self.make_set('One', [a])
+        self.make_set('Two', [a])  # raw add can duplicate
+        membership, dupes = ADDON.properties.sets.sets_membership(self.scene)
+        self.assertEqual(membership[a], 'One')
+        self.assertEqual(dupes, ['Body'])
+        # the job builder bakes it under the first set only
+        self.props.batch_source = 'TEXTURE_SETS'
+        self.baker.default_active_object = None  # execute() sets this normally
+        jobs = self.baker.build_jobs(self.context())
+        self.assertEqual(len(jobs), 1)
+        self.assertEqual(jobs[0].image_name, 'One')
+
+    def test_no_sets_is_a_blocker(self):
+        self.plane('Body')
+        self.props.batch_source = 'TEXTURE_SETS'
+        self.bake_map()
+        context = self.context()
+        self.assertEqual(self.baker.execute(context), {'RUNNING_MODAL'})
+        self.assertEqual(self.drive_to_end(context), {'CANCELLED'})
+        self.assertTrue(any('texture sets' in m for m in self.reported_messages()),
+                        self.reported_messages())
+
+    def test_set_operators_manage_membership(self):
+        a, _ = self.plane('Body')
+        self.assertEqual(bpy.ops.bakelab.texture_set_add(), {'FINISHED'})
+        ts = self.scene.BakeLabTextureSets[0]
+        self.assertEqual(ts.name, 'Set1')
+        self.assertTrue(ts.has_object(a))
+        # assign moves the object to the active set, leaving the old one
+        self.scene.BakeLabTextureSets.add().name = 'Set2'
+        self.scene.BakeLabTextureSetIndex = 1
+        self.assertEqual(bpy.ops.bakelab.texture_set_assign(), {'FINISHED'})
+        self.assertFalse(ts.has_object(a))
+        self.assertTrue(self.scene.BakeLabTextureSets[1].has_object(a))
+        # select picks the set's members
+        for obj in self.scene.objects:
+            obj.select_set(False)
+        self.assertEqual(bpy.ops.bakelab.texture_set_select(), {'FINISHED'})
+        self.assertTrue(a.select_get())
+        # unassign removes it from every set
+        self.assertEqual(bpy.ops.bakelab.texture_set_unassign(), {'FINISHED'})
+        self.assertFalse(self.scene.BakeLabTextureSets[1].has_object(a))
+
+
 class AddonPrefs(unittest.TestCase):
     """The BakeLabPreferences GPU backend writes through to the Cycles
     addon preferences. (preferences.addons has no entry here because the
@@ -1418,6 +1489,7 @@ if __name__ == '__main__':
                 loader.loadTestsFromTestCase(Cleanup),
                 loader.loadTestsFromTestCase(TextureImport),
                 loader.loadTestsFromTestCase(GridMaps),
+                loader.loadTestsFromTestCase(TextureSets),
                 loader.loadTestsFromTestCase(AddonPrefs),
                 loader.loadTestsFromTestCase(CompatLayer),
             ])

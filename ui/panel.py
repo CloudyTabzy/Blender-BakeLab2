@@ -3,6 +3,7 @@ from bpy.types import (
         )
 from ..utils.tools import material_has_wired_alpha, pair_high_low
 from ..properties.prefs import addon_preferences, cycles_preferences
+from ..properties.sets import sets_membership
 
 
 def bake_readiness(context):
@@ -33,6 +34,36 @@ def bake_readiness(context):
             checks.append(('info', 'No *_high sources for: '
                            + ', '.join(orphans[:3])
                            + (' ...' if len(orphans) > 3 else '')))
+    elif props.batch_source == 'TEXTURE_SETS':
+        sets = context.scene.BakeLabTextureSets
+        membership, duplicates = sets_membership(context.scene)
+        enabled = [ts for ts in sets if ts.enabled]
+        member_objs = {obj for obj in membership}
+        if not enabled:
+            checks.append(('warn', 'No texture sets - add one below'))
+        elif not member_objs:
+            checks.append(('warn', 'Enabled sets have no objects assigned'))
+        else:
+            checks.append(('ok', '%d set%s, %d object%s'
+                           % (sum(1 for ts in enabled
+                                  if any(m.object in membership
+                                         for m in ts.objects)),
+                              's' if len(enabled) != 1 else '',
+                              len(member_objs),
+                              's' if len(member_objs) != 1 else '')))
+            checks.append(('info', 'Each set bakes All To One'))
+            missing = [o.name for o in member_objs
+                       if len(o.data.uv_layers) == 0]
+            if missing:
+                checks.append(('warn', 'Missing UV map: ' + ', '.join(missing[:3])
+                                       + (' ...' if len(missing) > 3 else '')))
+            names = [ts.name for ts in enabled]
+            if len(names) != len(set(names)):
+                checks.append(('warn', 'Duplicate set names overwrite each '
+                                       "other's images"))
+            if duplicates:
+                checks.append(('info', 'In multiple sets (bake under first): '
+                               + ', '.join(sorted(set(duplicates))[:3])))
     elif props.batch_source != 'SELECTION':
         checks.append(('info', 'Bakes a %s batch, not just the selection'
                                % props.batch_source.title()))
@@ -154,9 +185,23 @@ class BakeLabUI(Panel):
             if props.batch_source == 'COLLECTION':
                 col.prop(props, "batch_collection")
                 col.prop(props, "batch_include_children")
+            if props.batch_source == 'TEXTURE_SETS':
+                box = col.box()
+                row = box.row()
+                row.template_list("BAKELAB_SET_UL_list", "",
+                                  context.scene, "BakeLabTextureSets",
+                                  context.scene, "BakeLabTextureSetIndex",
+                                  rows = 3)
+                ops = row.column(align = True)
+                ops.operator("bakelab.texture_set_add", icon = 'ADD', text = "")
+                ops.operator("bakelab.texture_set_remove", icon = 'REMOVE', text = "")
+                row = box.row(align = True)
+                row.operator("bakelab.texture_set_assign", icon = 'PINNED')
+                row.operator("bakelab.texture_set_unassign", icon = 'X', text = "")
+                row.operator("bakelab.texture_set_select", icon = 'RESTRICT_SELECT_OFF', text = "")
             if props.bake_mode == 'TO_ACTIVE' \
                     and props.batch_source not in ('SELECTION', 'NAME_PAIRS'):
-                col.label(text="Selected to Active needs Selection", icon='ERROR')
+                col.label(text="Selected to Active needs Selection or Pairs", icon='ERROR')
             if (props.batch_source == 'MATERIAL' and props.bake_mode == 'ALL_TO_ONE'
                     and props.pre_join_mesh):
                 col.label(text="By Material cannot use Pre-Join", icon='ERROR')

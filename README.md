@@ -7,7 +7,7 @@ creates the images, prepares the materials, bakes every map and packs or
 saves the results — all from one button.
 
 Compatible with **Blender 4.2 LTS → 5.2** from a single build ·
-Current release **3.7.0** · [Changelog](CHANGELOG.md)
+Current release **3.8.0** · [Changelog](CHANGELOG.md)
 
 **Fork:** https://github.com/CloudyTabzy/Blender-BakeLab2
 
@@ -57,6 +57,9 @@ Current release **3.7.0** · [Changelog](CHANGELOG.md)
   baked selected-to-active from its matching highs — no manual pairing.
   Variants scope the match (`chest_low_1` ← `chest_high_1`), and a bare
   `foo_low` collects every `foo_high*`.
+* **Texture Sets**: group objects into named sets (one set per object) —
+  each set bakes All To One into maps named after it, Substance-Painter
+  style.
 * **UDIM-aware** baking: one image per UV tile, auto-detected, saved per tile.
 * **Headless baking**: run whole batches from `blender -b` scripts.
 

@@ -10,6 +10,27 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+## [3.8.0] - 2026-09-28
+
+### Added
+
+- **Texture Sets** batch source: named groups of objects edited inline
+  in the Batch section (add/remove sets, assign/unassign the selected
+  meshes, select a set's members). Each enabled set bakes All To One
+  into maps named after the set (`Vehicle_albedo.png`,
+  `Env_normal.png`), Substance-Painter style. An object can only live
+  in one set — assigning moves it — and a stray duplicate membership
+  bakes under the first set with a report. Sets are scene data and
+  persist in the .blend file.
+- The preflight checklist previews set/member counts, missing UVs,
+  duplicate set names (which overwrite each other's images) and
+  cross-set memberships, and greys out Bake when no set is usable.
+
+### Changed
+
+- The Selected-to-Active conflict message now names both valid batch
+  sources (Selection or High-Low Pairs) instead of only Selection.
+
 ## [3.7.0] - 2026-09-28
 
 ### Added
@@ -182,7 +203,8 @@ or raising `blender_version_min`.
     "Shader" inputs) bind to the intended socket on every version;
   - saved images keep their exact colors on all supported versions.
 
-[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.7...HEAD
+[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.8...HEAD
+[3.8.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.7...v3.8
 [3.7.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.6...v3.7
 [3.6.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.5...v3.6
 [3.5.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.4...v3.5

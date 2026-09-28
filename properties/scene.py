@@ -57,7 +57,10 @@ class BakeLabProperties(PropertyGroup):
                 ('SCENE',      'Scene',       'One job: every mesh object in the scene'),
                 ('NAME_PAIRS', 'High-Low Pairs',
                                'One job per *_low mesh in the scene, baked Selected to Active '
-                               'from its matching *_high* sources')
+                               'from its matching *_high* sources'),
+                ('TEXTURE_SETS', 'Texture Sets',
+                               'One job per enabled texture set, baked All To One into '
+                               'maps named after the set')
             ),
             default = 'SELECTION'
         )
