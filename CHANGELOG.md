@@ -10,6 +10,33 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+## [3.9.1] - 2026-09-28
+
+### Fixed
+
+- **UDIM tile detection** follows triangle coverage on the evaluated
+  mesh. A standard 0-1 unwrap no longer creates blank tiles 1002, 1011
+  and 1012 (and writes their files); UV offsets from modifiers such as
+  Mirror or Array now get their tiles; a NaN UV is skipped and reported
+  instead of failing the job.
+- **Adaptive image size** with UDIM splits the surface area across the
+  tiles, so each tile gets the requested texel density rather than
+  sqrt(tile count) times it.
+- **AORM** occlusion (red channel) traces as far as the AO map does
+  (the world's AO distance) instead of stopping at 1 m, so both maps
+  agree.
+- Rebaking into a kept image (Clear image off) after changing the save
+  folder no longer fails with "does not have any image data", for flat
+  and UDIM images; a kept image whose files were deleted is recreated
+  with a warning.
+- The texture importer darkens Base Color by an AORM map's red channel
+  only (the full color tinted it by roughness and metallic), no longer
+  stacks another AO multiply when a file is imported again, and loads a
+  UDIM tile set (`name_1001.png`, `name_1002.png`...) as one image.
+- Object, material, collection and texture-set names with characters a
+  file name cannot hold (`:` `/` `\` `*`...) no longer fail the save;
+  they are replaced by `_` in the file and folder names.
+
 ## [3.9.0] - 2026-09-28
 
 ### Added
