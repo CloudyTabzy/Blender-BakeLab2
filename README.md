@@ -1,131 +1,80 @@
-# Blender-BakeLab2
+# BakeLab 2
+
 ![Thumbnail](images/bakelab_thumbnail_text_logo_small.png)
-BakeLab - A blender addon for baking images.<br>
-Compatible with Blender 4.2 LTS through 5.2 from a single build.<br>
-Current release: **3.3.0** (tag `v3.3`).
+
+**Texture baking, minus the busywork.** Point BakeLab at your objects and it
+creates the images, prepares the materials, bakes every map and packs or
+saves the results — all from one button.
+
+Compatible with **Blender 4.2 LTS → 5.2** from a single build ·
+Current release **3.3.0** · [Changelog](CHANGELOG.md)
 
 **Fork:** https://github.com/CloudyTabzy/Blender-BakeLab2
 
-Main Features:
-* Automatically create images, setup materials, bake objects and save/pack images in one click;
-* Automatically generating materials;
-* Anti-Aliased baking;
-* Baking cycles displacement to real geometry;
-* Bake any PBR attributes of your material by its name (Metallic, Roughness, Specular and etc);
-* Adaptive image size by object's surface size;
-* Unwrap and Bake Multiple Objects into one image;
-* **UDIM-aware baking: one tile per UV tile, auto-detected, saved per tile**;
-* **Batch/queue baking: by selection, material, collection or scene, with per-job error isolation**;
-* **Headless baking: run batches from `blender -b` scripts**;
-* **Per-map clear image option for transparent backgrounds**;
-* **Max ray distance support for improved baking control**;
-* **Runs on Blender 4.2 LTS through 5.2 from one build** (version differences handled in `utils/compat.py` by capability detection);
-* **Blender Extensions manifest for official extension support**;
+## ✨ Features
 
-![Screen](images/bakelab_screen.png)
+### 🚀 One-click pipeline
 
-## Installation
+* Creates the target images, sets up bake materials, bakes and packs/saves —
+  one click, no manual wiring.
+* **Preflight checklist** shows exactly what a bake will do before it runs —
+  mesh selection, missing UVs (named), map counts, batch conflicts — and
+  greys out Bake while something blocks it.
+* Smart fallbacks: an empty map list auto-adds a default Albedo map, and a
+  wired alpha input auto-adds an Alpha map — both announced, never silent.
+* **Generate Materials** rebuilds clean PBR materials wired to the baked
+  maps, including Alpha (with transparency enabled) and channel-split AORM.
+* Unwrap helpers, Cycles displacement baked to real geometry, and
+  Selected-to-Active / All-To-One workflows.
 
-1. Download or build the extension zip (see below).
-2. In Blender, go to *Edit > Preferences > Get Extensions*, open the drop-down at the top right and choose *Install from Disk...*.
-3. Find the **BakeLab** tab in the 3D View sidebar (*N*).
+### 🗺️ Maps for every pipeline
 
-### Building the zip
+* Full PBR set: Albedo, Normal, Roughness, Metallic, Specular, Emission,
+  Alpha, Ambient Occlusion…
+* **AORM packed map** — AO → R, Roughness → G, Metallic → B in a single
+  pass, Unreal/Unity style.
+* **Material ID** — a stable, distinct color per material for masking and
+  selection work.
+* **Position** — world-space surface coordinates, EXR-ready.
+* **Custom Pass** — bake any shader socket or named attribute by its name.
+* Per-map control: fixed or **adaptive** size from surface area,
+  anti-aliasing supersampling, clear-image transparency, max ray distance.
 
-From the repository folder (or a checkout of the release tag `v3`), run:
+### 📦 Batch & automation
+
+* Batch by **selection, material, collection or scene** — a failing job is
+  reported and skipped, never kills the queue.
+* **UDIM-aware** baking: one image per UV tile, auto-detected, saved per tile.
+* **Headless baking**: run whole batches from `blender -b` scripts.
+
+### 🛠️ Built to last
+
+* One build runs on Blender 4.2 LTS through 5.2 — version differences are
+  handled by capability detection, not version checks.
+* Ships as an official **Blender extension** — install from disk and go.
+
+![Screenshot](images/bakelab_screen.png)
+
+## 📥 Installation
+
+1. Grab `blender_bakelab-<version>.zip` from a [release](../../releases) or
+   build it yourself (below).
+2. In Blender: *Edit → Preferences → Get Extensions*, open the top-right
+   drop-down and choose *Install from Disk…*.
+3. Open the **BakeLab** tab in the 3D View sidebar (*N*) — the checklist
+   tells you whether your scene is ready to bake.
+
+### 🔨 Building the zip
+
+From the repository folder (or a checkout of a release tag), run:
 
 ```
 blender --command extension build
 ```
 
-This writes `blender_bakelab-<version>.zip`, containing only the files the add-on needs.
+This writes `blender_bakelab-<version>.zip`, containing only the files the
+add-on needs.
 
-## Changes in 3.3.0
+## 📋 Changelog
 
-* **AORM packed map type**: bakes occlusion, roughness and metallic into
-  one RGB texture in a single EMIT pass; Generate Materials splits the
-  channels back into Principled Roughness/Metallic with AO darkening.
-* **Preflight checklist**: the panel shows at a glance whether a bake is
-  ready — selected mesh count, missing UVs, enabled map count,
-  auto-added maps and batch conflicts — and greys out Bake on blockers.
-
-## Changes in 3.2.0
-
-* **Metallic, Material ID and Position map types**: Metallic bakes the
-  material's metalness via EMIT and Generate Materials wires it into
-  Principled; MatID gives every material a stable, distinct color for
-  masking; Position records world-space coordinates (EXR recommended).
-
-## Changes in 3.1.1
-
-* **Alpha map type + detection**: Alpha is now a first-class bake map —
-  it bakes the material's wired Alpha/opacity input into a grayscale
-  mask, bakes opaque for materials without one, and is auto-added when
-  the bake detects a wired Alpha input. Generate Materials wires it into
-  the Principled Alpha and enables transparency so Eevee shows it too.
-
-## Changes in 3.1.0
-
-* **One-click bake on ready scenes**: pressing Bake with an empty map list
-  no longer errors — the baker adds the Add Map operator's default (Albedo)
-  and reports exactly what was created (type, image name, size, samples).
-* **Clearer validation**: missing-UV errors name the offending object,
-  Selected to Active explains what it expects, and an all-disabled map
-  list reports instead of baking nothing.
-
-## Changes in 3.0.0
-
-* **UDIM baking**: a per-map *UDIM* toggle bakes one tile per UV tile (1001+).
-  Needed tiles are auto-detected from the bake UVs, initialized, baked in one
-  pass, and saved as `name_1001.png`, `name_1002.png`, ... (or packed). Tiles
-  bake at final size — anti-aliasing is unavailable for UDIM maps, and
-  *Apply Displacement* from a UDIM image uses only the first tile (warned).
-* **Batch baking**: a new *Batch* source picks what forms the bake queue —
-  Selection (default, unchanged behavior), By Material (one job per material,
-  with each job baking only its own material's faces), Collection, or Scene.
-  A failing job is reported and skipped without killing the rest; Esc still
-  cancels everything.
-* **Headless baking**: with no window (`blender -b`), Bake runs synchronously
-  to completion, so batches can be scripted:
-  `bpy.ops.bakelab.bake()` after enabling the extension.
-* Progress display shows the running job (index, count, name) during batches.
-* **Blender 4.2 LTS - 5.2 from a single build** (2.1.0 required 5.0+): a new
-  `utils/compat.py` holds every version difference, chosen by capability
-  detection rather than version-number checks —
-  * the 5.0+ `media_type`/`file_format` coupling when choosing save formats,
-    with the scene's original media type restored afterwards;
-  * "no look" and image color spaces resolved against the active OCIO config
-    (named differently across builds), warning with the attempted names when
-    nothing matches;
-  * Cycles enabled automatically when its add-on is off, with a clean error
-    instead of a crash when that is not possible;
-  * node sockets looked up by name and identifier with position as
-    tie-breaker, so renamed or ambiguous sockets (e.g. Mix Shader's two
-    "Shader" inputs) bind to the intended socket on every version;
-  * saved images keep their exact colors on all supported versions.
-* UDIM/tile behavior verified on 5.2 with API-identical 4.2 docs — see the
-  TESTING.md version matrix, whose gate runs on each supported version.
-
-## Changes in 2.1.0
-
-* Fixed Blender freezing on materials with node groups that have no Group Input
-* Fixed crashes: Transmission maps, Adaptive image size, editing Min/Max Size, Selected to Active without an active object
-* Original materials are no longer deleted when baking linked duplicates
-* Saved images keep their exact colors (the scene's AgX view transform is no longer applied) and still show after reopening the .blend
-* Transparent backgrounds (*Clear image*) are kept when saving, packing and exporting
-* Pre-Join Meshes works again, and cancelling with *Esc* restores materials
-* Subsurface maps now bake the material's Subsurface Weight
-* All To One no longer wipes earlier objects, and Max Ray Distance is its own setting
-* Adaptive size applies each map's Image Scale; reused images are resized to the map size
-
-See `TESTING.md` for the release test checklist (kept outside the
-add-on package, in the `docs/` folder next to the release zips).
-
-### Correctness fixes
-
-* Transparent backgrounds follow UV coverage, preserving black surfaces and zero-valued maps.
-* Baking uses the selected editing UV map and records it for post-bake actions, including merged atlases with different UV map names.
-* Bake errors clean up temporary materials, objects, handlers and timers and restore scene settings.
-* Shader group inputs, direct connections and output defaults are preserved when extracting passes.
-* Apply AO supports mixed and grouped shaders; custom-pass presets use current Principled socket names.
-* Automated Blender regression checks are available in `tests/blender_regressions.py`.
+Release history lives in [CHANGELOG.md](CHANGELOG.md).

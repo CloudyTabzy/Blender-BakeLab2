@@ -10,6 +10,11 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+### Changed
+
+- README reworked into a feature overview — per-version change sections
+  removed; release notes now live only in this changelog.
+
 ## [3.3.0] - 2026-09-28
 
 ### Added
