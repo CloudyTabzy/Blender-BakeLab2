@@ -19,20 +19,20 @@ bl_info = {
     "author" : "Tabzy",
     "description" : "Bake textures easily",
     "blender" : (4, 2, 0),
-    "version" : (3, 5, 0),
+    "version" : (3, 6, 0),
     "location" : "View3D > Properties > BakeLab",
     "category" : "Baking"
 }
 
 if "bpy" in locals():
     import importlib
-    for _mod in (compat, tools, maps, baked_data, scene,
+    for _mod in (compat, tools, maps, baked_data, scene, prefs,
                  bake, post, uv, map_ops, import_textures, panel, map_list):
         importlib.reload(_mod)
     del _mod
 else:
     from .utils import compat as compat, tools as tools
-    from .properties import maps, baked_data, scene
+    from .properties import maps, baked_data, scene, prefs
     from .operators import bake, post, uv, maps as map_ops, import_textures
     from .ui import panel, map_list
 
@@ -45,6 +45,7 @@ from bpy.props import (
         )
 
 classes = (
+    prefs.BakeLabPreferences,
     scene.BakeLabProperties,
 
     maps.BakeLabMap,

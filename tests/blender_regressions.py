@@ -1251,6 +1251,38 @@ class TextureImport(_BakeLabTestBase):
         self.assertEqual(img.source, 'TILED')
 
 
+class AddonPrefs(unittest.TestCase):
+    """The BakeLabPreferences GPU backend writes through to the Cycles
+    addon preferences. (preferences.addons has no entry here because the
+    suite registers classes directly, so the helpers are exercised with a
+    stand-in prefs object.)"""
+
+    def test_gpu_backend_items_and_apply(self):
+        prefs_mod = ADDON.properties.prefs
+        cycles = bpy.context.preferences.addons['cycles'].preferences
+        saved = cycles.compute_device_type
+        self.addCleanup(setattr, cycles, 'compute_device_type', saved)
+        available = {item[0] for item in cycles.get_device_types(bpy.context)}
+
+        items = {item[0] for item
+                 in prefs_mod.gpu_backend_items(None, bpy.context)}
+        self.assertEqual(items, available | {'AUTO'})
+
+        # AUTO leaves Blender's own setting alone
+        prefs = SimpleNamespace(gpu_backend='AUTO')
+        prefs_mod.apply_gpu_backend(prefs, bpy.context)
+        self.assertEqual(cycles.compute_device_type, saved)
+        for backend in available - {'NONE'}:
+            prefs.gpu_backend = backend
+            prefs_mod.apply_gpu_backend(prefs, bpy.context)
+            self.assertEqual(cycles.compute_device_type, backend)
+        # a backend this machine lacks is ignored, not crashed
+        before = cycles.compute_device_type
+        prefs.gpu_backend = 'NOT_A_BACKEND'
+        prefs_mod.apply_gpu_backend(prefs, bpy.context)
+        self.assertEqual(cycles.compute_device_type, before)
+
+
 class CompatLayer(unittest.TestCase):
     """Version-agnostic invariants of bakelab_compat, run on every build."""
 
@@ -1340,6 +1372,7 @@ if __name__ == '__main__':
                 loader.loadTestsFromTestCase(NamePairBaking),
                 loader.loadTestsFromTestCase(Cleanup),
                 loader.loadTestsFromTestCase(TextureImport),
+                loader.loadTestsFromTestCase(AddonPrefs),
                 loader.loadTestsFromTestCase(CompatLayer),
             ])
             result = unittest.TextTestRunner(verbosity=2).run(suite)

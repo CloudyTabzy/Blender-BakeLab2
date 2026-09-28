@@ -10,6 +10,20 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+## [3.6.0] - 2026-09-28
+
+### Added
+
+- **Addon preferences** (Edit → Preferences → Add-ons → BakeLab): a
+  **GPU Backend** option lists the Cycles compute backends the machine
+  supports (OptiX, CUDA, HIP, oneAPI, Metal…) and writes the choice
+  through to Cycles — both when changed and again at bake start, so a
+  manually changed Cycles setting can't silently override it. `Auto`
+  leaves Blender's own backend selection alone, and a stored backend
+  that the current machine lacks is ignored rather than erroring.
+- The preflight checklist shows the effective GPU backend whenever
+  Device is GPU Compute.
+
 ## [3.5.0] - 2026-09-28
 
 ### Added
@@ -154,7 +168,8 @@ or raising `blender_version_min`.
     "Shader" inputs) bind to the intended socket on every version;
   - saved images keep their exact colors on all supported versions.
 
-[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.5...HEAD
+[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.6...HEAD
+[3.6.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.5...v3.6
 [3.5.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.4...v3.5
 [3.4.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.3.1...v3.4
 [3.3.1]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.3...v3.3.1

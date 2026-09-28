@@ -21,6 +21,7 @@ from ..utils.tools import (
 )
 from ..utils import compat
 from ..properties.maps import apply_type_defaults
+from ..properties.prefs import addon_preferences, apply_gpu_backend
     
 def iter_child_collections(collection):
     for child in collection.children:
@@ -1074,6 +1075,8 @@ class Baker(Operator):
         props.bake_state = 'BAKING'
         scene.render.engine = 'CYCLES'
         self.cycles.device = props.compute_device
+        if props.compute_device == 'GPU':
+            apply_gpu_backend(addon_preferences(context), context)
         if not self.headless:
             # Pausing the viewport preview only matters with a UI, and Cycles'
             # update callback tag_redraws a nonexistent area in background mode

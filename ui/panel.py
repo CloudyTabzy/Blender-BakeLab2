@@ -2,6 +2,7 @@ from bpy.types import (
             Panel
         )
 from ..utils.tools import material_has_wired_alpha, pair_high_low
+from ..properties.prefs import addon_preferences, cycles_preferences
 
 
 def bake_readiness(context):
@@ -74,6 +75,12 @@ def bake_readiness(context):
                for o in context.selected_objects if o.type == 'MESH'
                for slot in o.material_slots):
             checks.append(('info', 'Wired Alpha input - an Alpha map will be added'))
+    if props.compute_device == 'GPU':
+        backend = getattr(addon_preferences(context), 'gpu_backend', 'AUTO')
+        if backend == 'AUTO':
+            cycles = cycles_preferences(context)
+            backend = cycles.compute_device_type if cycles is not None else 'NONE'
+        checks.append(('info', 'GPU backend: ' + backend))
     return checks
 
 
