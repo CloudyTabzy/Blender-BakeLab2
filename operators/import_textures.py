@@ -74,9 +74,12 @@ def mix_color_socket(mix, name, sockets):
     return next(s for s in sockets if s.name == name and s.type == 'RGBA')
 
 
-def wire_ambient_occlusion(nodes, links, pbr, img_node, origin):
-    """Multiply whatever feeds Base Color by the occlusion map; a flat
-    material still darkens through its stored default color."""
+def wire_ambient_occlusion(nodes, links, pbr, occlusion, origin):
+    """Multiply whatever feeds Base Color by the `occlusion` output socket;
+    a flat material still darkens through its stored default color. A
+    re-import finds its multiply already in place and adds no second one."""
+    if any(link.to_node.bl_idname == 'ShaderNodeMix' for link in occlusion.links):
+        return
     base = base_color_socket(pbr)
     mix = nodes.new(type='ShaderNodeMix')
     mix.data_type = 'RGBA'
@@ -90,7 +93,7 @@ def wire_ambient_occlusion(nodes, links, pbr, img_node, origin):
         links.remove(base.links[0])
     else:
         sock_a.default_value = base.default_value
-    links.new(compat.output_socket(img_node, 'Color', 0), sock_b)
+    links.new(occlusion, sock_b)
     links.new(next(s for s in mix.outputs if s.type == 'RGBA'), base)
 
 
@@ -128,14 +131,20 @@ def wire_channel(mat, stem, channel, image):
             links.new(compat.output_socket(normal_map, 'Normal', 0), socket)
         links.new(color, compat.input_socket(normal_map, 'Color', 1))
     elif channel == 'aorm':
-        sep = nodes.new(type='ShaderNodeSeparateColor')
+        sep = next((link.to_node for link in color.links
+                    if link.to_node.bl_idname == 'ShaderNodeSeparateColor'), None)
+        if sep is None:
+            sep = nodes.new(type='ShaderNodeSeparateColor')
+            links.new(color, compat.input_socket(sep, 'Color', 0))
         sep.location = img_node.location[0] + 170, img_node.location[1]
-        links.new(color, compat.input_socket(sep, 'Color', 0))
         links.new(compat.output_socket(sep, 'Green', 1), pbr.inputs['Roughness'])
         links.new(compat.output_socket(sep, 'Blue', 2), pbr.inputs['Metallic'])
-        wire_ambient_occlusion(nodes, links, pbr, img_node, sep.location)
+        # Only the red channel is occlusion; the full color would tint Base
+        # Color by roughness and metallic
+        wire_ambient_occlusion(nodes, links, pbr,
+                               compat.output_socket(sep, 'Red', 0), sep.location)
     elif channel == 'ao':
-        wire_ambient_occlusion(nodes, links, pbr, img_node, img_node.location)
+        wire_ambient_occlusion(nodes, links, pbr, color, img_node.location)
     elif channel == 'alpha':
         socket = compat.input_socket(pbr, 'Alpha')
         if socket is not None:

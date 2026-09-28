@@ -1339,6 +1339,19 @@ class TextureImport(_BakeLabTestBase):
         self.assertTrue(pbr.inputs['Alpha'].is_linked)
         self.assertEqual(mat.surface_render_method, 'DITHERED')
 
+    def test_aorm_occlusion_uses_red_channel_and_reimports_cleanly(self):
+        obj, mat = self.plane('sword')
+        nodes = mat.node_tree.nodes
+        with tempfile.TemporaryDirectory() as directory:
+            self.import_files(directory, 'sword_aorm.png')
+            self.import_files(directory, 'sword_aorm.png')
+        mixes = [n for n in nodes if n.bl_idname == 'ShaderNodeMix']
+        self.assertEqual(len(mixes), 1)  # AO darkens once, not per import
+        self.assertEqual(sum(n.bl_idname == 'ShaderNodeSeparateColor' for n in nodes), 1)
+        occlusion = next(s for s in mixes[0].inputs if s.name == 'B' and s.is_linked)
+        source = occlusion.links[0].from_socket
+        self.assertEqual((source.node.bl_idname, source.name), ('ShaderNodeSeparateColor', 'Red'))
+
     def test_udim_file_loads_tiled(self):
         obj, mat = self.plane('sword')
         with tempfile.TemporaryDirectory() as directory:
