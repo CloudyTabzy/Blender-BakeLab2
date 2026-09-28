@@ -19,7 +19,7 @@ bl_info = {
     "author" : "Tabzy",
     "description" : "Bake textures easily",
     "blender" : (4, 2, 0),
-    "version" : (3, 3, 0),
+    "version" : (3, 3, 1),
     "location" : "View3D > Properties > BakeLab",
     "category" : "Baking"
 }
@@ -79,13 +79,18 @@ def register():
     bpy.types.Scene.BakeLabMapIndex = IntProperty(name = 'BakeLab Map List Index')
 
 def unregister():
-    for cls in classes:
-        bpy.utils.unregister_class(cls)
+    # Delete scene properties before the classes they point at, and
+    # tolerate a partially torn-down RNA when Blender calls this during
+    # shutdown (unregister_class can then raise "missing bl_rna").
+    for prop in ("BakeLabProps", "BakeLabMaps", "BakeLab_Data", "BakeLabMapIndex"):
+        if hasattr(bpy.types.Scene, prop):
+            delattr(bpy.types.Scene, prop)
 
-    del bpy.types.Scene.BakeLabProps
-    del bpy.types.Scene.BakeLabMaps
-    del bpy.types.Scene.BakeLab_Data
-    del bpy.types.Scene.BakeLabMapIndex
+    for cls in reversed(classes):
+        try:
+            bpy.utils.unregister_class(cls)
+        except RuntimeError:
+            pass
 
 if __name__ == "__main__":
     register()

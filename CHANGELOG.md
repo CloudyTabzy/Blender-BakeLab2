@@ -10,6 +10,14 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+## [3.3.1] - 2026-09-28
+
+### Fixed
+
+- Unregister no longer throws a `missing bl_rna` RuntimeError when Blender
+  calls it during shutdown — scene properties are detached before their
+  classes, and teardown errors are tolerated.
+
 ### Changed
 
 - README reworked into a feature overview — per-version change sections
@@ -115,7 +123,8 @@ or raising `blender_version_min`.
     "Shader" inputs) bind to the intended socket on every version;
   - saved images keep their exact colors on all supported versions.
 
-[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.3...HEAD
+[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.3.1...HEAD
+[3.3.1]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.3...v3.3.1
 [3.3.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.2...v3.3
 [3.2.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.1.1...v3.2
 [3.1.1]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.1...v3.1.1
