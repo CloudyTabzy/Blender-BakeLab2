@@ -9,7 +9,8 @@ from bpy.types import (
 import colorsys
 import hashlib
 from array import array
-from math import log2, floor
+from math import log2
+import numpy as np
 from os.path import abspath, join
 
 from ..utils.tools import (
@@ -580,32 +581,61 @@ class Baker(Operator):
         bake_image.alpha_mode = 'STRAIGHT'
 
     def collect_udim_tiles(self, objects):
-        """Set of UDIM tile numbers covered by the bake UVs of objects. Uses
-        each object's editing-active UV layer — the same layer run_bake passes
-        to object.bake. Coordinates outside the valid tile grid (negative,
-        u >= 10 — the grid is ten columns wide — or tile > 2000) are counted
-        and reported once; tile = 1001 + floor(u) + floor(v) * 10."""
+        """Set of UDIM tile numbers the bake UVs of objects overlap. Cycles
+        rasterizes each triangle into every tile it covers, so a triangle
+        claims the tiles of its UV bounding box; an edge merely touching a
+        tile border (u = 1.0 on a 0-1 unwrap) claims nothing past it. Reads
+        the evaluated mesh, since modifiers (Mirror, Array) can offset UVs
+        into other tiles, through the editing-active UV layer run_bake passes
+        to object.bake. Triangles reaching outside the grid (negative, u >= 10
+        — the grid is ten columns wide — tile > 2000, or non-finite UVs) are
+        counted and reported once; tile = 1001 + floor(u) + floor(v) * 10."""
         tiles = set()
         skipped = 0
+        depsgraph = bpy.context.evaluated_depsgraph_get()
         for obj in objects:
-            uv_layer = obj.data.uv_layers.active
-            if uv_layer is None:
+            uv_name = compat.active_uv_name(obj)
+            if not uv_name:
                 continue
-            coords = array('f', [0.0]) * (len(uv_layer.data) * 2)
-            uv_layer.data.foreach_get('uv', coords)
-            for i in range(0, len(coords), 2):
-                tu = int(floor(coords[i]))
-                tv = int(floor(coords[i + 1]))
-                number = 1001 + tu + tv * 10
-                # tu > 9 would collide with the next row's tiles (u=15,v=0 and
-                # u=5,v=1 both compute 1016) and the engine bakes nothing there
-                if tu < 0 or tv < 0 or tu > 9 or number > 2000:
-                    skipped += 1
+            eval_obj = obj.evaluated_get(depsgraph)
+            mesh = eval_obj.to_mesh()
+            try:
+                uv_layer = mesh.uv_layers.get(uv_name)
+                if uv_layer is None:
                     continue
-                tiles.add(number)
+                mesh.calc_loop_triangles()
+                loops = np.empty(len(mesh.loop_triangles) * 3, dtype=np.int32)
+                mesh.loop_triangles.foreach_get('loops', loops)
+                uvs = np.empty(len(uv_layer.data) * 2, dtype=np.float32)
+                uv_layer.data.foreach_get('uv', uvs)
+            finally:
+                eval_obj.to_mesh_clear()
+            tri_uvs = uvs.astype(np.float64).reshape(-1, 2)[loops].reshape(-1, 3, 2)
+            finite = np.isfinite(tri_uvs).all(axis=(1, 2))
+            skipped += int(np.count_nonzero(~finite))
+            tri_uvs = tri_uvs[finite]
+            # The epsilon keeps float noise at a border (0.9999999 / 1.0000001)
+            # from claiming the neighbor; it is far below half a texel.
+            lo = np.floor(tri_uvs.min(axis=1) + 1e-5)
+            hi = np.ceil(tri_uvs.max(axis=1) - 1e-5) - 1
+            # hi < lo: zero-area triangle on a tile border, it bakes no pixels
+            real = (hi >= lo).all(axis=1)
+            lo, hi = lo[real], hi[real]
+            grid_max = np.array((9, 99))
+            skipped += int(np.count_nonzero(((lo < 0) | (hi > grid_max)).any(axis=1)))
+            lo = np.maximum(lo, 0)
+            hi = np.minimum(hi, grid_max)
+            inside = (hi >= lo).all(axis=1)
+            lo, hi = lo[inside].astype(np.int64), hi[inside].astype(np.int64)
+            single = (lo == hi).all(axis=1)
+            tiles.update(int(n) for n in np.unique(1001 + lo[single, 0] + lo[single, 1] * 10))
+            for (u0, v0), (u1, v1) in {(tuple(a), tuple(b)) for a, b in zip(lo[~single], hi[~single])}:
+                tiles.update(1001 + u + v * 10
+                             for u in range(u0, u1 + 1) for v in range(v0, v1 + 1))
         if skipped:
             self.report(type = {'WARNING'},
-                        message = '%d UV coordinates outside the UDIM range 1001-2000 were skipped' % skipped)
+                        message = '%d UV triangles reach outside the UDIM range 1001-2000 '
+                                  'or have invalid coordinates; those parts were skipped' % skipped)
         return tiles
 
     def create_image(self, context, map, image_name, tiles=()):
@@ -657,7 +687,13 @@ class Baker(Operator):
     def PrepareImage(self, context, map, objects, name):
         props = context.scene.BakeLabProps
         self.SetSaveImageSettings(context, map)
-        
+
+        udim_tiles = set()
+        if map.use_udim:
+            udim_tiles = self.collect_udim_tiles(objects)
+            if not udim_tiles:
+                raise RuntimeError('No UVs inside the UDIM tile range (1001-2000)')
+
         if props.image_size == 'FIXED':
             map.target_width  = map.width
             map.target_height = map.height
@@ -676,7 +712,6 @@ class Baker(Operator):
         if map.aa_override > 0:
             map.final_aa = map.aa_override
 
-        udim_tiles = set()
         if map.use_udim:
             # No per-tile downscale exists in the Python API: image.scale()
             # only touches the base tile, so UDIM maps bake at final size.
@@ -685,9 +720,6 @@ class Baker(Operator):
                             message = 'Anti-aliasing is disabled for UDIM maps (tiles bake at final size)')
                 self._udim_aa_warned = True
             map.final_aa = 1
-            udim_tiles = self.collect_udim_tiles(objects)
-            if not udim_tiles:
-                raise RuntimeError('No UVs inside the UDIM tile range (1001-2000)')
 
         image_name = map.img_name.replace('*', name)
 

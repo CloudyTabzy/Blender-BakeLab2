@@ -950,15 +950,41 @@ class UdimBaking(_BakeLabTestBase):
         self.assertTrue(any('skipped' in m for m in self.reported_messages()),
                         self.reported_messages())
 
-        # Mixed: only the out-of-grid corner is skipped, the valid tile bakes
+        # Mixed: only the out-of-grid object is skipped, the valid tile bakes
         self.scene.BakeLabMaps.clear()
-        obj, _ = self.udim_plane('Near', (1, 0, 0, 1), 0, 0)
-        obj.data.uv_layers['BakeUV'].data[0].uv = (10.2, 0.25)
+        near, _ = self.udim_plane('Near', (1, 0, 0, 1), 0, 0)
+        near.select_set(True)
+        bpy.data.objects['Far'].select_set(True)
+        self.props.bake_mode = 'ALL_TO_ONE'
         item = self.bake_map()
         item.use_udim = True
+        item.img_name = 'Mixed'
         self.run_pipeline()
         image = self.scene.BakeLab_Data[-1].map_list[0].image
         self.assertEqual(COMPAT.tile_numbers(image), {1001})
+
+    def test_udim_tiles_follow_triangle_coverage(self):
+        bpy.ops.mesh.primitive_plane_add()
+        full = bpy.context.object  # UVs span exactly 0-1
+        # Edges on u=1.0 / v=1.0 bake no pixels past the border
+        self.assertEqual(self.baker.collect_udim_tiles([full]), {1001})
+        for loop in full.data.uv_layers.active.data:
+            loop.uv.x *= 2  # one quad across tiles 1001 and 1002
+        self.assertEqual(self.baker.collect_udim_tiles([full]), {1001, 1002})
+
+    def test_udim_tiles_read_modifier_uv_offsets(self):
+        obj, _ = self.udim_plane('P', (1, 0, 0, 1), 0, 0)
+        mirror = obj.modifiers.new('Mirror', 'MIRROR')
+        mirror.use_mirror_u = True
+        mirror.offset_u = 1  # mirrored half lands in tile 1002
+        self.assertEqual(self.baker.collect_udim_tiles([obj]), {1001, 1002})
+
+    def test_udim_non_finite_uvs_are_skipped(self):
+        obj, _, _ = self.multi_material_grid(uv_scale=0.5)
+        obj.data.uv_layers['BakeUV'].data[0].uv = (float('nan'), 0.25)  # poly 0 only
+        self.assertEqual(self.baker.collect_udim_tiles([obj]), {1001})
+        self.assertTrue(any('skipped' in m for m in self.reported_messages()),
+                        self.reported_messages())
 
     def test_udim_mixed_range_bakes_valid_tiles(self):
         obj, _ = self.udim_plane('P', (1, 0, 0, 1), 0, 0)
