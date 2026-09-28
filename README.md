@@ -2,7 +2,7 @@
 ![Thumbnail](images/bakelab_thumbnail_text_logo_small.png)
 BakeLab - A blender addon for baking images.<br>
 Compatible with Blender 4.2 LTS through 5.2 from a single build.<br>
-Current release: **3.0.0** (tag `v3`).
+Current release: **3.1.0** (tag `v3.1`).
 
 **Fork:** https://github.com/CloudyTabzy/Blender-BakeLab2
 
@@ -39,6 +39,15 @@ blender --command extension build
 ```
 
 This writes `blender_bakelab-<version>.zip`, containing only the files the add-on needs.
+
+## Changes in 3.1.0
+
+* **One-click bake on ready scenes**: pressing Bake with an empty map list
+  no longer errors — the baker adds the Add Map operator's default (Albedo)
+  and reports exactly what was created (type, image name, size, samples).
+* **Clearer validation**: missing-UV errors name the offending object,
+  Selected to Active explains what it expects, and an all-disabled map
+  list reports instead of baking nothing.
 
 ## Changes in 3.0.0
 

@@ -10,11 +10,14 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-09-28
+
 ### Changed
 
 - Pressing Bake with an empty map list on a ready object no longer errors
   with "Add bake maps" — the baker adds the Add Map operator's default
-  (Albedo) and reports it, so a valid scene bakes on the first click.
+  (Albedo) and reports exactly what was created (type, image name, size,
+  samples), so a valid scene bakes on the first click.
 - Validation messages name the offending object ("Object \"X\" has no UV
   map" instead of "Not all objects have UV maps") and the Selected to
   Active errors were clarified. A bake with all maps disabled now reports
@@ -60,5 +63,6 @@ or raising `blender_version_min`.
     "Shader" inputs) bind to the intended socket on every version;
   - saved images keep their exact colors on all supported versions.
 
-[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3...HEAD
+[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.1...HEAD
+[3.1.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3...v3.1
 [3.0.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/releases/tag/v3

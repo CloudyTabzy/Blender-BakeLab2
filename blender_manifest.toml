@@ -1,7 +1,7 @@
 schema_version = "1.0.0"
 
 id = "blender_bakelab"
-version = "3.0.0"
+version = "3.1.0"
 name = "BakeLab"
 tagline = "Bake textures with automatic image and material setup"
 maintainer = "Tabzy"

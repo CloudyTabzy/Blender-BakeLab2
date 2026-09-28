@@ -1098,10 +1098,14 @@ class Baker(Operator):
             self.report(type = {'ERROR'},
                         message = 'Objects need a UV map before baking: ' + names)
             return False
-        apply_type_defaults(context.scene.BakeLabMaps.add(), 'Albedo')
+        item = context.scene.BakeLabMaps.add()
+        apply_type_defaults(item, 'Albedo')
         self.report(type = {'INFO'},
-                    message = 'No bake maps configured - added a default Albedo '
-                              'map; adjust or add more in the Maps list')
+                    message = 'No bake maps configured - added a default %s map '
+                              '("%s", %dx%d, %d samples); adjust or add more in '
+                              'the Maps list'
+                              % (item.type, item.img_name,
+                                 item.width, item.height, item.samples))
         return True
 
     def build_jobs(self, context):
