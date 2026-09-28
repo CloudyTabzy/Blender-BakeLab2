@@ -16,7 +16,8 @@ from ..utils.tools import (
     SelectObject,
     SelectObjects,
     IsValidMesh,
-    material_has_wired_alpha
+    material_has_wired_alpha,
+    pair_high_low
 )
 from ..utils import compat
 from ..properties.maps import apply_type_defaults
@@ -32,15 +33,18 @@ class BakeJob:
 
     materials=None bakes every material slot (legacy SELECTION behavior);
     a set of original Materials restricts the bake target to the slots
-    holding them (MATERIAL batch source)."""
-    __slots__ = ('name', 'objects', 'active_object', 'image_name', 'materials')
+    holding them (MATERIAL batch source). mode=None follows the scene's
+    bake_mode; a job can force its own (NAME_PAIRS jobs bake TO_ACTIVE)."""
+    __slots__ = ('name', 'objects', 'active_object', 'image_name', 'materials', 'mode')
 
-    def __init__(self, name, objects, active_object=None, image_name=None, materials=None):
+    def __init__(self, name, objects, active_object=None, image_name=None,
+                 materials=None, mode=None):
         self.name = name
         self.objects = list(objects)
         self.active_object = active_object
         self.image_name = image_name
         self.materials = materials
+        self.mode = mode
 
 
 class Baker(Operator):
@@ -1177,7 +1181,8 @@ class Baker(Operator):
         modes need UVs on every object in each job."""
         missing = []
         for job in jobs:
-            targets = (job.active_object,) if bake_mode == 'TO_ACTIVE' else job.objects
+            targets = (job.active_object,) \
+                      if (job.mode or bake_mode) == 'TO_ACTIVE' else job.objects
             for obj in targets:
                 if obj is not None and len(obj.data.uv_layers) == 0:
                     missing.append(obj.name)
@@ -1230,7 +1235,7 @@ class Baker(Operator):
         for job in jobs:
             # Selected to Active bakes the sources' alpha, not the target's
             objects = (o for o in job.objects if o is not job.active_object) \
-                      if bake_mode == 'TO_ACTIVE' else job.objects
+                      if (job.mode or bake_mode) == 'TO_ACTIVE' else job.objects
             for obj in objects:
                 for slot in obj.material_slots:
                     if material_has_wired_alpha(slot.material):
@@ -1242,7 +1247,7 @@ class Baker(Operator):
         the message to report; per-job validation stays in the job bodies."""
         props = context.scene.BakeLabProps
         source = props.batch_source
-        if props.bake_mode == 'TO_ACTIVE' and source != 'SELECTION':
+        if props.bake_mode == 'TO_ACTIVE' and source not in ('SELECTION', 'NAME_PAIRS'):
             raise RuntimeError('Selected to Active baking needs the Selection batch source')
         if source == 'MATERIAL' and props.bake_mode == 'ALL_TO_ONE' and props.pre_join_mesh:
             # Joining drops material slots, so faces can no longer be attributed
@@ -1302,6 +1307,32 @@ class Baker(Operator):
                 raise RuntimeError('No collections with valid mesh objects to bake')
             return jobs
 
+        if source == 'NAME_PAIRS':
+            # Scene scan: the convention is naming, not selection. Type filter
+            # first so cameras/lights don't spam IsValidMesh warnings.
+            meshes = [obj for obj in context.scene.collection.all_objects
+                      if obj.type == 'MESH' and IsValidMesh(self, obj)]
+            matched = []
+            orphans = []
+            for low, highs in pair_high_low(meshes):
+                if highs:
+                    matched.append((low, highs))
+                else:
+                    orphans.append(low.name)
+            if orphans:
+                self.report(type = {'INFO'},
+                            message = 'No *_high sources found for: ' + ', '.join(orphans))
+            if not matched:
+                raise RuntimeError('No *_low objects with matching *_high sources in the scene')
+            pairs = ', '.join('%s <- %s' % (low.name, ', '.join(o.name for o in highs))
+                              for low, highs in matched[:5])
+            if len(matched) > 5:
+                pairs += ' and %d more' % (len(matched) - 5)
+            self.report(type = {'INFO'}, message = 'High-Low pairs: ' + pairs)
+            return [BakeJob(low.name, [low, *highs], active_object = low,
+                            image_name = low.name, mode = 'TO_ACTIVE')
+                    for low, highs in matched]
+
         # SCENE
         objects = [obj for obj in context.scene.collection.all_objects if IsValidMesh(self, obj)]
         if len(objects) == 0:
@@ -1311,10 +1342,11 @@ class Baker(Operator):
 
     def bake_job(self, context, job):
         props = context.scene.BakeLabProps
+        mode = job.mode or props.bake_mode
         try:
-            if props.bake_mode == "INDIVIDUAL":
+            if mode == "INDIVIDUAL":
                 return (yield from self.bake_job_individual(context, job))
-            if props.bake_mode == "ALL_TO_ONE":
+            if mode == "ALL_TO_ONE":
                 return (yield from self.bake_job_all_to_one(context, job))
             return (yield from self.bake_job_to_active(context, job))
         finally:

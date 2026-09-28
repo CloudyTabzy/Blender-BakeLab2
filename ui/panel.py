@@ -1,7 +1,7 @@
 from bpy.types import (
             Panel
         )
-from ..utils.tools import material_has_wired_alpha
+from ..utils.tools import material_has_wired_alpha, pair_high_low
 
 
 def bake_readiness(context):
@@ -11,7 +11,28 @@ def bake_readiness(context):
     status is 'ok', 'info' or 'warn'."""
     props = context.scene.BakeLabProps
     checks = []
-    if props.batch_source != 'SELECTION':
+    if props.batch_source == 'NAME_PAIRS':
+        meshes = [o for o in context.scene.collection.all_objects
+                  if o.type == 'MESH' and len(o.data.polygons) > 0]
+        pairs = pair_high_low(meshes)
+        matched = [(low, highs) for low, highs in pairs if highs]
+        orphans = [low.name for low, highs in pairs if not highs]
+        if not matched:
+            checks.append(('warn', 'No *_low / *_high name pairs in the scene'))
+        else:
+            checks.append(('ok', '%d *_low target%s matched *_high sources'
+                           % (len(matched), 's' if len(matched) != 1 else '')))
+            checks.append(('info', 'Each pair bakes Selected to Active'))
+            missing = [low.name for low, _ in matched
+                       if len(low.data.uv_layers) == 0]
+            if missing:
+                checks.append(('warn', 'Missing UV map: ' + ', '.join(missing[:3])
+                                       + (' ...' if len(missing) > 3 else '')))
+        if orphans:
+            checks.append(('info', 'No *_high sources for: '
+                           + ', '.join(orphans[:3])
+                           + (' ...' if len(orphans) > 3 else '')))
+    elif props.batch_source != 'SELECTION':
         checks.append(('info', 'Bakes a %s batch, not just the selection'
                                % props.batch_source.title()))
     else:
@@ -33,7 +54,8 @@ def bake_readiness(context):
                                    + (' ...' if len(missing) > 3 else '')))
         elif targets:
             checks.append(('ok', 'UV maps present'))
-    if props.bake_mode == 'TO_ACTIVE' and props.batch_source != 'SELECTION':
+    if props.bake_mode == 'TO_ACTIVE' \
+            and props.batch_source not in ('SELECTION', 'NAME_PAIRS'):
         checks.append(('warn', 'Selected to Active needs the Selection batch'))
     if (props.batch_source == 'MATERIAL' and props.bake_mode == 'ALL_TO_ONE'
             and props.pre_join_mesh):
@@ -89,6 +111,7 @@ class BakeLabUI(Panel):
             row = layout.row(align = True)
             row.operator("bakelab.unwrap", icon='UV')
             row.operator("bakelab.clear_uv", icon='UV')
+            row.operator("bakelab.cleanup", icon='TRASH', text="")
 
             layout.separator()
             
@@ -123,7 +146,8 @@ class BakeLabUI(Panel):
             if props.batch_source == 'COLLECTION':
                 col.prop(props, "batch_collection")
                 col.prop(props, "batch_include_children")
-            if props.bake_mode == 'TO_ACTIVE' and props.batch_source != 'SELECTION':
+            if props.bake_mode == 'TO_ACTIVE' \
+                    and props.batch_source not in ('SELECTION', 'NAME_PAIRS'):
                 col.label(text="Selected to Active needs Selection", icon='ERROR')
             if (props.batch_source == 'MATERIAL' and props.bake_mode == 'ALL_TO_ONE'
                     and props.pre_join_mesh):

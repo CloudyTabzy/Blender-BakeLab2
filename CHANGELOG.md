@@ -10,6 +10,22 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+## [3.4.0] - 2026-09-28
+
+### Added
+
+- **High–Low pair batching**: a new *High-Low Pairs* batch source scans
+  the scene for `*_low` meshes and bakes each one Selected-to-Active from
+  its matching `*_high*` sources. A bare `foo_low` collects every
+  `foo_high*` variant; a `foo_low_1` is scoped to `foo_high_1` plus a
+  shared variant-free `foo_high`. Orphan lows are reported, never
+  blockers, and the preflight checklist previews the pairs.
+- **Clean Leftovers** operator (bin icon beside the UV tools): recovers a
+  scene after a crashed or interrupted bake — re-points stranded material
+  copies to their surviving originals, strips `BAKELAB_TMP_*` nodes when
+  no original can be identified, removes temp objects/meshes/materials,
+  and resets a bake state stuck in a file saved mid-bake.
+
 ## [3.3.1] - 2026-09-28
 
 ### Fixed
@@ -123,7 +139,8 @@ or raising `blender_version_min`.
     "Shader" inputs) bind to the intended socket on every version;
   - saved images keep their exact colors on all supported versions.
 
-[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.3.1...HEAD
+[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.4...HEAD
+[3.4.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.3.1...v3.4
 [3.3.1]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.3...v3.3.1
 [3.3.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.2...v3.3
 [3.2.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.1.1...v3.2

@@ -1,4 +1,5 @@
 import bpy
+import re
 
 def SelectObject(obj):
     bpy.ops.object.select_all(action = 'DESELECT')
@@ -41,3 +42,35 @@ def material_has_wired_alpha(mat):
                          or socket.identifier.casefold() in ALPHA_SOCKET_NAMES):
                 return True
     return False
+
+# foo_low / foo_low_01 / foo_low.001  <->  foo_high / foo_high_a / foo_high.001
+# The side tag needs a separator before it; a variant follows through a
+# separator or as trailing digits (so "sword_lowpoly" stays a plain name).
+_NAME_PAIR_RE = re.compile(r'^(.*?)[_\-.](low|high)((?:[_\-.][\w.-]*|\d+))?$', re.IGNORECASE)
+_DEDUP_RE = re.compile(r'\.\d+$')
+
+def split_pair_name(name):
+    """'prop_low_01' -> ('prop', 'low', '01'); None when the name carries
+    no _low/_high tag. Blender's .001 dedup suffix is stripped first."""
+    match = _NAME_PAIR_RE.match(_DEDUP_RE.sub('', name))
+    if match is None or match.group(1) == '':
+        return None
+    variant = (match.group(3) or '').lstrip('_-.').casefold()
+    return match.group(1).casefold(), match.group(2).casefold(), variant
+
+def pair_high_low(objects):
+    """Match *_low targets to their *_high* sources by name. Variants must
+    agree when both sides carry one ('chest_low_1' <- 'chest_high_1'), while
+    a side with no variant pairs with every variant of the other. Returns
+    [(low, [highs])] sorted by low name - lows with no sources included."""
+    lows = []
+    highs = []
+    for obj in objects:
+        parts = split_pair_name(obj.name)
+        if parts is None:
+            continue
+        base, side, variant = parts
+        (lows if side == 'low' else highs).append((obj, base, variant))
+    return [(low, [obj for obj, hbase, hvar in highs
+                   if hbase == base and (variant == hvar or not variant or not hvar)])
+            for low, base, variant in sorted(lows, key=lambda e: e[0].name)]

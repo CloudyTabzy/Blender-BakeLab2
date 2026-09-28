@@ -1053,6 +1053,112 @@ class HeadlessBaking(_BakeLabTestBase):
                 self.assert_coverage(tile, 32)
 
 
+class NamePairBaking(_BakeLabTestBase):
+    """High-Low pair batching: the matcher, job building, and an end bake."""
+
+    def test_split_pair_name(self):
+        split = ADDON.utils.tools.split_pair_name
+        self.assertEqual(split('sword_low'), ('sword', 'low', ''))
+        self.assertEqual(split('Sword_LOW_01'), ('sword', 'low', '01'))
+        self.assertEqual(split('sword_low.001'), ('sword', 'low', ''))
+        self.assertEqual(split('sword_high-a'), ('sword', 'high', 'a'))
+        self.assertIsNone(split('sword_lowpoly'))  # 'lowpoly' is a base word
+        self.assertIsNone(split('plain'))
+        self.assertIsNone(split('_low'))           # no base
+        self.assertIsNone(split('low'))            # no separator before the tag
+
+    def test_pair_matching_variants(self):
+        names = ['sword_low', 'sword_high', 'sword_high_grip',
+                 'chest_low_1', 'chest_high_1', 'chest_high_2',
+                 'shelf_lowpoly', 'plain']
+        pairs = dict((low.name, sorted(h.name for h in highs))
+                     for low, highs in ADDON.utils.tools.pair_high_low(
+                         [SimpleNamespace(name=n) for n in names]))
+        # A low with no variant collects every high variant of its base
+        self.assertEqual(pairs['sword_low'], ['sword_high', 'sword_high_grip'])
+        # A variant low is scoped to the matching variant
+        self.assertEqual(pairs['chest_low_1'], ['chest_high_1'])
+        self.assertNotIn('shelf_lowpoly', pairs)
+        self.assertEqual(len(pairs), 2)
+
+    def test_name_pairs_bakes_low_from_highs(self):
+        low, _ = self.plane('sword_low')
+        high, _ = self.plane('sword_high')
+        high.location.z = 0.01
+        self.plane('orphan_low')  # reported, skipped - not a blocker
+        self.props.batch_source = 'NAME_PAIRS'
+        self.bake_map()
+        self.run_pipeline()
+        data = self.scene.BakeLab_Data
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0].map_list[0].image.name, 'sword_low_Albedo')
+        self.assert_coverage(data[0].map_list[0].image, 64)
+        messages = self.reported_messages()
+        self.assertTrue(any('orphan_low' in m and 'No *_high' in m
+                            for m in messages), messages)
+
+    def test_name_pairs_without_matches_errors(self):
+        self.plane('sword_low')
+        self.props.batch_source = 'NAME_PAIRS'
+        self.bake_map()
+        context = self.context()
+        self.assertEqual(self.baker.execute(context), {'RUNNING_MODAL'})
+        self.assertEqual(self.drive_to_end(context), {'CANCELLED'})
+        self.assertTrue(any('matching *_high' in m for m in self.reported_messages()),
+                        self.reported_messages())
+
+    def test_name_pairs_allows_to_active_mode(self):
+        # Pair jobs run Selected-to-Active per job regardless of the scene
+        # mode - the Selection-only conflict must not fire for them.
+        low, _ = self.plane('sword_low')
+        high, _ = self.plane('sword_high')
+        high.location.z = 0.01
+        self.props.bake_mode = 'TO_ACTIVE'
+        self.props.batch_source = 'NAME_PAIRS'
+        self.bake_map()
+        self.run_pipeline()
+        self.assertEqual(len(self.scene.BakeLab_Data), 1)
+
+
+class Cleanup(_BakeLabTestBase):
+    """bakelab.cleanup re-points stranded copies, drops temp datablocks and
+    unsticks a saved-mid-bake state."""
+
+    def test_cleanup_repoints_stranded_material_copy(self):
+        obj, mat = self.plane('Plane')
+        copy = mat.copy()
+        obj.material_slots[0].material = copy
+        tmp = copy.node_tree.nodes.new('ShaderNodeTexImage')
+        tmp.name = 'BAKELAB_TMP_IMAGE_NODE'
+        copy_name = copy.name  # the struct is freed on removal
+        bpy.ops.bakelab.cleanup()
+        self.assertIs(obj.data.materials[0], mat)
+        self.assertIsNone(bpy.data.materials.get(copy_name))
+
+    def test_cleanup_strips_nodes_when_original_is_gone(self):
+        copy = bpy.data.materials.new('Orphan.001')
+        COMPAT.enable_nodes(copy)
+        tmp = copy.node_tree.nodes.new('ShaderNodeTexImage')
+        tmp.name = 'BAKELAB_TMP_IMAGE_NODE'
+        self.addCleanup(bpy.data.materials.remove, copy)
+        bpy.ops.bakelab.cleanup()
+        self.assertIsNotNone(bpy.data.materials.get('Orphan.001'))
+        self.assertFalse(any(n.name.startswith('BAKELAB_TMP')
+                             for n in copy.node_tree.nodes))
+
+    def test_cleanup_removes_merged_leftovers_and_unsticks_state(self):
+        mesh = bpy.data.meshes.new('BAKELAB_MERGED_MESH_TMP')
+        merged = bpy.data.objects.new('BAKELAB_MERGED_OBJ_TMP', mesh)
+        self.scene.collection.objects.link(merged)
+        bpy.data.materials.new('BAKELAB_TMP_EMPTY_MAT')
+        self.props.bake_state = 'BAKING'
+        bpy.ops.bakelab.cleanup()
+        self.assertIsNone(bpy.data.objects.get('BAKELAB_MERGED_OBJ_TMP'))
+        self.assertIsNone(bpy.data.meshes.get('BAKELAB_MERGED_MESH_TMP'))
+        self.assertIsNone(bpy.data.materials.get('BAKELAB_TMP_EMPTY_MAT'))
+        self.assertEqual(self.props.bake_state, 'NONE')
+
+
 class CompatLayer(unittest.TestCase):
     """Version-agnostic invariants of bakelab_compat, run on every build."""
 
@@ -1139,6 +1245,8 @@ if __name__ == '__main__':
                 loader.loadTestsFromTestCase(BatchBaking),
                 loader.loadTestsFromTestCase(UdimBaking),
                 loader.loadTestsFromTestCase(HeadlessBaking),
+                loader.loadTestsFromTestCase(NamePairBaking),
+                loader.loadTestsFromTestCase(Cleanup),
                 loader.loadTestsFromTestCase(CompatLayer),
             ])
             result = unittest.TextTestRunner(verbosity=2).run(suite)

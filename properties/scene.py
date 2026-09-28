@@ -54,7 +54,10 @@ class BakeLabProperties(PropertyGroup):
                 ('SELECTION',  'Selection',   'One job: the current selection'),
                 ('MATERIAL',   'By Material', 'One job per material on the selected objects'),
                 ('COLLECTION', 'Collection',  'One job per collection'),
-                ('SCENE',      'Scene',       'One job: every mesh object in the scene')
+                ('SCENE',      'Scene',       'One job: every mesh object in the scene'),
+                ('NAME_PAIRS', 'High-Low Pairs',
+                               'One job per *_low mesh in the scene, baked Selected to Active '
+                               'from its matching *_high* sources')
             ),
             default = 'SELECTION'
         )

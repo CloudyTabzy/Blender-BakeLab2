@@ -1,4 +1,5 @@
 import bpy
+import re
 from bpy.types import (
             Operator
         )
@@ -447,9 +448,71 @@ class BakeLab_Finish(Operator):
     bl_label = "Finish"
     bl_idname = "bakelab.finish"
     bl_options = {'REGISTER', 'UNDO'}
-    
+
     def execute(self, context):
         props = context.scene.BakeLabProps
         context.scene.BakeLab_Data.clear()
         props.bake_state = 'NONE'
+        return {'FINISHED'}
+
+
+class BakeLab_Cleanup(Operator):
+    """Remove leftovers from a crashed or interrupted bake"""
+    bl_label = "Clean Leftovers"
+    bl_idname = "bakelab.cleanup"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    @staticmethod
+    def tmp_marked(mat):
+        """A material BakeLab converted mid-bake still carries its temp
+        nodes - it is always a copy, the original tree survives unmarked."""
+        if not mat.use_nodes or mat.node_tree is None:
+            return False
+        return any(node.name.startswith('BAKELAB_TMP')
+                   for node in mat.node_tree.nodes)
+
+    @staticmethod
+    def remove_prefixed(collection, prefix):
+        removed = 0
+        for item in [item for item in collection if item.name.startswith(prefix)]:
+            collection.remove(item)
+            removed += 1
+        return removed
+
+    def execute(self, context):
+        reassigned = 0
+        stripped = 0
+        for mat in list(bpy.data.materials):
+            if not self.tmp_marked(mat):
+                continue
+            original = bpy.data.materials.get(re.sub(r'\.\d+$', '', mat.name))
+            if original is not None and original is not mat \
+                    and not self.tmp_marked(original):
+                mat.user_remap(original)
+                bpy.data.materials.remove(mat)
+                reassigned += 1
+            else:
+                # No identifiable original - at least drop the temp nodes
+                nodes = mat.node_tree.nodes
+                for node in [n for n in nodes if n.name.startswith('BAKELAB_TMP')]:
+                    nodes.remove(node)
+                stripped += 1
+        removed = self.remove_prefixed(bpy.data.objects, 'BAKELAB_MERGED_OBJ_TMP') \
+                + self.remove_prefixed(bpy.data.meshes, 'BAKELAB_MERGED_MESH_TMP') \
+                + self.remove_prefixed(bpy.data.materials, 'BAKELAB_TMP')
+        # A file saved mid-bake reloads with the panel stuck on BAKING
+        unstuck = 0
+        if context.scene.BakeLabProps.bake_state != 'NONE':
+            context.scene.BakeLabProps.bake_state = 'NONE'
+            unstuck = 1
+        if not (reassigned or stripped or removed or unstuck):
+            self.report(type = {'INFO'}, message = 'Nothing to clean up')
+        else:
+            self.report(type = {'INFO'},
+                        message = 'Cleaned up: %d material%s re-pointed, '
+                                  '%d temp node%s removed, %d temp data block%s removed%s'
+                                  % (reassigned, 's' if reassigned != 1 else '',
+                                     stripped, 's' if stripped != 1 else '',
+                                     removed, 's' if removed != 1 else '',
+                                     ', bake state reset' if unstuck else ''))
         return {'FINISHED'}

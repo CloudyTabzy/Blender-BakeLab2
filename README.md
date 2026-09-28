@@ -7,7 +7,7 @@ creates the images, prepares the materials, bakes every map and packs or
 saves the results — all from one button.
 
 Compatible with **Blender 4.2 LTS → 5.2** from a single build ·
-Current release **3.3.1** · [Changelog](CHANGELOG.md)
+Current release **3.4.0** · [Changelog](CHANGELOG.md)
 
 **Fork:** https://github.com/CloudyTabzy/Blender-BakeLab2
 
@@ -26,6 +26,9 @@ Current release **3.3.1** · [Changelog](CHANGELOG.md)
   maps, including Alpha (with transparency enabled) and channel-split AORM.
 * Unwrap helpers, Cycles displacement baked to real geometry, and
   Selected-to-Active / All-To-One workflows.
+* **Clean Leftovers** recovers a scene after an interrupted bake —
+  re-points stranded material copies to their originals and clears temp
+  objects, nodes and a stuck bake state.
 
 ### 🗺️ Maps for every pipeline
 
@@ -44,6 +47,10 @@ Current release **3.3.1** · [Changelog](CHANGELOG.md)
 
 * Batch by **selection, material, collection or scene** — a failing job is
   reported and skipped, never kills the queue.
+* **High–Low pairs**: name meshes `foo_low` / `foo_high*` and each low is
+  baked selected-to-active from its matching highs — no manual pairing.
+  Variants scope the match (`chest_low_1` ← `chest_high_1`), and a bare
+  `foo_low` collects every `foo_high*`.
 * **UDIM-aware** baking: one image per UV tile, auto-detected, saved per tile.
 * **Headless baking**: run whole batches from `blender -b` scripts.
 

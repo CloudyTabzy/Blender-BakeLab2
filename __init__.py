@@ -19,7 +19,7 @@ bl_info = {
     "author" : "Tabzy",
     "description" : "Bake textures easily",
     "blender" : (4, 2, 0),
-    "version" : (3, 3, 1),
+    "version" : (3, 4, 0),
     "location" : "View3D > Properties > BakeLab",
     "category" : "Baking"
 }
@@ -60,6 +60,7 @@ classes = (
     post.BakeLab_ApplyAO,
     post.BakeLab_ApplyDisplace,
     post.BakeLab_Finish,
+    post.BakeLab_Cleanup,
 
     map_ops.BakeLabAddMapItem,
     map_ops.BakeLabRemoveMapItem,
