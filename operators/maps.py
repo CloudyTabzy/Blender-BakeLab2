@@ -7,7 +7,7 @@ from bpy.props import (
             BoolProperty,
             FloatProperty
         )
-from ..properties.maps import MAP_TYPE_ITEMS
+from ..properties.maps import MAP_TYPE_ITEMS, apply_type_defaults
 
 class BakeLabAddMapItem(Operator):
     """Add a new bake map"""
@@ -117,58 +117,7 @@ class BakeLabAddMapItem(Operator):
             )
 
     def calcItemSettings(self,context,item):
-        if self.type == 'Albedo':
-            item.img_name = '*_t'
-            item.samples  = 4
-        if self.type == 'Combined':
-            item.img_name = '*_c'
-            item.samples  = 64
-        if self.type == 'Normal':
-            item.img_name = '*_n'
-            item.samples  = 16
-            item.color_space = 'Non-Color'
-            item.aa_override = 1 #Because cycles has buildin anti-aliasing for normals
-        if self.type == 'Displacement':
-            item.img_name = '*_h'
-            item.samples  = 4
-            item.color_space = 'Non-Color'
-        if self.type == 'AO':
-            item.img_name = '*_ao'
-            item.samples  = 64
-            item.color_space = 'Non-Color'
-        if self.type == 'Shadow':
-            item.img_name = '*_sh'
-            item.samples  = 32
-        if self.type == 'Glossy':
-            item.img_name = '*_s'
-            item.samples  = 8
-        if self.type == 'Roughness':
-            item.img_name = '*_r'
-            item.samples  = 4
-            item.color_space = 'Non-Color'
-        if self.type == 'Diffuse':
-            item.img_name = '*_d'
-            item.samples  = 8
-        if self.type == 'Emission':
-            item.img_name = '*_e'
-            item.samples  = 4
-        if self.type == 'Transmission':
-            item.img_name = '*_a'
-            item.samples  = 8
-        if self.type == 'UV':
-            item.img_name = '*_uv'
-            item.samples  = 1
-        if self.type == 'Environment':
-            item.img_name = '*_env'
-            item.samples  = 16
-        if self.type == 'Subsurface':
-            item.img_name = '*_sss'
-            item.samples  = 4
-            item.color_space = 'Non-Color'
-        if self.type == 'CustomPass':
-            item.img_name = '*_pass'
-            item.samples  = 4
-            item.color_space = 'Non-Color'
+        apply_type_defaults(item, self.type)
 
     def draw(self,context):
         layout = self.layout

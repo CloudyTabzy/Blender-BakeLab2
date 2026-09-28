@@ -202,3 +202,61 @@ class BakeLabMap(PropertyGroup):
     #combined_subsurface        : BoolProperty(name = 'Subsurface',   default = True)
     #combined_ambient_occlusion : BoolProperty(name = 'AO',           default = True)
     combined_emit              : BoolProperty(name = 'Emit',         default = True)
+
+
+def apply_type_defaults(item, map_type):
+    """Type-specific defaults for a bake-map item, shared by the Add Map
+    operator and the default map the baker inserts when none is configured."""
+    item.type = map_type
+    if map_type == 'Albedo':
+        item.img_name = '*_t'
+        item.samples  = 4
+    if map_type == 'Combined':
+        item.img_name = '*_c'
+        item.samples  = 64
+    if map_type == 'Normal':
+        item.img_name = '*_n'
+        item.samples  = 16
+        item.color_space = 'Non-Color'
+        item.aa_override = 1 #Because cycles has buildin anti-aliasing for normals
+    if map_type == 'Displacement':
+        item.img_name = '*_h'
+        item.samples  = 4
+        item.color_space = 'Non-Color'
+    if map_type == 'AO':
+        item.img_name = '*_ao'
+        item.samples  = 64
+        item.color_space = 'Non-Color'
+    if map_type == 'Shadow':
+        item.img_name = '*_sh'
+        item.samples  = 32
+    if map_type == 'Glossy':
+        item.img_name = '*_s'
+        item.samples  = 8
+    if map_type == 'Roughness':
+        item.img_name = '*_r'
+        item.samples  = 4
+        item.color_space = 'Non-Color'
+    if map_type == 'Diffuse':
+        item.img_name = '*_d'
+        item.samples  = 8
+    if map_type == 'Emission':
+        item.img_name = '*_e'
+        item.samples  = 4
+    if map_type == 'Transmission':
+        item.img_name = '*_a'
+        item.samples  = 8
+    if map_type == 'UV':
+        item.img_name = '*_uv'
+        item.samples  = 1
+    if map_type == 'Environment':
+        item.img_name = '*_env'
+        item.samples  = 16
+    if map_type == 'Subsurface':
+        item.img_name = '*_sss'
+        item.samples  = 4
+        item.color_space = 'Non-Color'
+    if map_type == 'CustomPass':
+        item.img_name = '*_pass'
+        item.samples  = 4
+        item.color_space = 'Non-Color'

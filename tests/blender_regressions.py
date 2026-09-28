@@ -305,6 +305,50 @@ class BakeLabRegressions(_BakeLabTestBase):
         self.assert_coverage(self.scene.BakeLab_Data[0].map_list[0].image, 64)
         self.assertEqual(destination.active_material, mat)
 
+    def test_bake_adds_default_map_when_none_configured(self):
+        # Unwrapped + textured object with an empty map list should just bake:
+        # the baker supplies the Add Map operator's default instead of erroring.
+        self.plane()
+        self.run_pipeline()
+        self.assertEqual([m.type for m in self.scene.BakeLabMaps], ['Albedo'])
+        self.assertTrue(any('default Albedo' in m for m in self.reported_messages()),
+                        self.reported_messages())
+        self.assertEqual(len(self.scene.BakeLab_Data[0].map_list), 1)
+
+    def test_missing_uv_without_maps_reports_uvs_first(self):
+        obj, _ = self.plane()
+        for layer in list(obj.data.uv_layers):
+            obj.data.uv_layers.remove(layer)
+        context = self.context()
+        self.assertEqual(self.baker.execute(context), {'RUNNING_MODAL'})
+        self.assertEqual(self.drive_to_end(context), {'CANCELLED'})
+        self.assertTrue(any('need a UV map' in m and 'Plane' in m
+                            for m in self.reported_messages()),
+                        self.reported_messages())
+        self.assertEqual(len(self.scene.BakeLabMaps), 0)
+
+    def test_missing_uv_with_maps_names_the_object(self):
+        obj, _ = self.plane()
+        for layer in list(obj.data.uv_layers):
+            obj.data.uv_layers.remove(layer)
+        self.bake_map()
+        context = self.context()
+        self.assertEqual(self.baker.execute(context), {'RUNNING_MODAL'})
+        self.assertEqual(self.drive_to_end(context), {'CANCELLED'})
+        self.assertTrue(any('no UV map' in m and 'Plane' in m
+                            for m in self.reported_messages()),
+                        self.reported_messages())
+
+    def test_all_maps_disabled_reports_error(self):
+        self.plane()
+        item = self.bake_map()
+        item.enabled = False
+        context = self.context()
+        self.assertEqual(self.baker.execute(context), {'RUNNING_MODAL'})
+        self.assertEqual(self.drive_to_end(context), {'CANCELLED'})
+        self.assertTrue(any('disabled' in m for m in self.reported_messages()),
+                        self.reported_messages())
+
     def test_reused_image_preserves_pixels_outside_bake_uv(self):
         obj, _ = self.plane()
         item = self.bake_map()

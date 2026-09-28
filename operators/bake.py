@@ -16,6 +16,7 @@ from ..utils.tools import (
     IsValidMesh
 )
 from ..utils import compat
+from ..properties.maps import apply_type_defaults
     
 def iter_child_collections(collection):
     for child in collection.children:
@@ -1000,15 +1001,21 @@ class Baker(Operator):
             return
 
         if len(scene.BakeLabMaps) == 0:
-            self.report(type = {'ERROR'}, message = 'Add bake maps')
-            yield -1
-            return
+            if not self.add_default_map(context, jobs):
+                yield -1
+                return
 
         props.baking_map_index = 0
         props.baking_map_count = 0
         for map in scene.BakeLabMaps:
             if map.enabled:
                 props.baking_map_count += 1
+        if props.baking_map_count == 0:
+            self.report(type = {'ERROR'},
+                        message = 'All %d bake maps are disabled - enable at least one'
+                                  % len(scene.BakeLabMaps))
+            yield -1
+            return
         props.baking_job_index = 0
         props.baking_job_count = len(jobs)
         failed_jobs = []
@@ -1066,6 +1073,36 @@ class Baker(Operator):
                 if mat is not None:
                     used[mat] = None
         return list(used)
+
+    def objects_missing_uv(self, jobs, bake_mode):
+        """Object names that would block the bake for lack of UVs. Selected to
+        Active only needs the target (active) object unwrapped; the other
+        modes need UVs on every object in each job."""
+        missing = []
+        for job in jobs:
+            targets = (job.active_object,) if bake_mode == 'TO_ACTIVE' else job.objects
+            for obj in targets:
+                if obj is not None and len(obj.data.uv_layers) == 0:
+                    missing.append(obj.name)
+        return sorted(set(missing))
+
+    def add_default_map(self, context, jobs):
+        """With no maps configured, supply the Add Map operator's default when
+        the objects are otherwise ready to bake. Reports the real blocker and
+        returns False when something else is missing."""
+        missing = self.objects_missing_uv(jobs, context.scene.BakeLabProps.bake_mode)
+        if missing:
+            names = ', '.join(missing[:5])
+            if len(missing) > 5:
+                names += ' and %d more' % (len(missing) - 5)
+            self.report(type = {'ERROR'},
+                        message = 'Objects need a UV map before baking: ' + names)
+            return False
+        apply_type_defaults(context.scene.BakeLabMaps.add(), 'Albedo')
+        self.report(type = {'INFO'},
+                    message = 'No bake maps configured - added a default Albedo '
+                              'map; adjust or add more in the Maps list')
+        return True
 
     def build_jobs(self, context):
         """The bake queue. Pre-bake validation errors raise RuntimeError with
@@ -1159,7 +1196,8 @@ class Baker(Operator):
         props = scene.BakeLabProps
         for obj in job.objects:
             if len(obj.data.uv_layers) == 0:
-                self.report(type = {'ERROR'}, message = 'Not all objects have UV maps')
+                self.report(type = {'ERROR'},
+                            message = 'Object "%s" has no UV map' % obj.name)
                 return False
         render.bake.use_selected_to_active = False
 
@@ -1203,7 +1241,8 @@ class Baker(Operator):
          # Check UVs {
         for obj in job.objects:
             if len(obj.data.uv_layers) == 0:
-                self.report(type = {'ERROR'}, message = 'Not all objects have UV maps')
+                self.report(type = {'ERROR'},
+                            message = 'Object "%s" has no UV map' % obj.name)
                 return False
         # }
 
@@ -1283,14 +1322,17 @@ class Baker(Operator):
         render = scene.render
         props = scene.BakeLabProps
         if len(job.objects) < 2:
-            self.report(type = {'ERROR'}, message = 'Select atleast two mesh objects')
+            self.report(type = {'ERROR'},
+                        message = 'Selected to Active needs at least two mesh objects')
             return False
         # The active object's materials are only preserved if it's one of the selected objects
         if job.active_object not in job.objects:
-            self.report(type = {'ERROR'}, message = 'Active object must be a selected mesh with faces')
+            self.report(type = {'ERROR'},
+                        message = 'The active object must be among the selected meshes (it receives the bake)')
             return False
         if len(job.active_object.data.uv_layers) == 0:
-            self.report(type = {'ERROR'}, message = 'Active object does not have UV maps')
+            self.report(type = {'ERROR'},
+                        message = 'Active object "%s" has no UV map' % job.active_object.name)
             return False
         render.bake.use_selected_to_active = True
         render.bake.use_cage = True

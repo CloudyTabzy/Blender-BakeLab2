@@ -12,6 +12,13 @@ or raising `blender_version_min`.
 
 ### Changed
 
+- Pressing Bake with an empty map list on a ready object no longer errors
+  with "Add bake maps" — the baker adds the Add Map operator's default
+  (Albedo) and reports it, so a valid scene bakes on the first click.
+- Validation messages name the offending object ("Object \"X\" has no UV
+  map" instead of "Not all objects have UV maps") and the Selected to
+  Active errors were clarified. A bake with all maps disabled now reports
+  that instead of silently baking nothing.
 - Reorganized the package into role-based sub-packages: `utils/` (compat
   shims, tools), `properties/` (scene settings, bake maps, baked data),
   `operators/` (all operators) and `ui/` (panel, map list). `__init__.py`
