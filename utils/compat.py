@@ -70,8 +70,9 @@ PATH_PROPERTY_OPTIONS = _detect_path_property_options()
 # candidate and read back.
 NONE_LOOK_CANDIDATES = ('None', 'NONE', '')
 
-# Color space names are OCIO config entries, not API names; these are the
-# spellings the default configs of the supported range use.
+# Color space names are OCIO config entries, not API names; the extras are
+# spellings other configs use for the same space. The accepted name is read
+# back so a config that rejects one spelling falls through to the next.
 COLOR_SPACE_CANDIDATES = {
     'sRGB':      ('sRGB EOTF', 'Utility - sRGB - Texture', 'sRGB - Texture'),
     'Non-Color': ('Non-Colour Data', 'Utility - Raw', 'Raw', 'Data'),
@@ -105,8 +106,10 @@ def set_enum(rna_ptr, key, value):
 def set_image_file_format(image_format_settings, file_format, media_type=None):
     """Set render.image_settings.file_format on any supported Blender.
 
-    On 5.0+ file_format is filtered by media_type, so the accepted value
-    is returned rather than assumed. media_type=None means plain images.
+    On 5.0+ file_format is filtered by media_type, so media_type is set
+    first (changing it later re-defaults file_format) and the accepted
+    value is returned rather than assumed. media_type=None means plain
+    images.
     """
     if SUPPORTS_IMAGE_MEDIA_TYPE:
         wanted = media_type or 'IMAGE'
