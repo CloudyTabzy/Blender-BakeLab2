@@ -489,6 +489,37 @@ class BakeLabRegressions(_BakeLabTestBase):
         self.assertEqual(tuple(image.pixels[:4]), (0, 0, 0, 1))
         self.assertEqual(tuple(image.pixels[-4:]), (0, 0, 1, 1))
 
+    def test_reused_image_survives_a_new_save_path(self):
+        for udim in (False, True):
+            with self.subTest(udim=udim):
+                self.scene.BakeLabMaps.clear()
+                for obj in list(bpy.data.objects):
+                    bpy.data.objects.remove(obj)
+                self.plane()
+                item = self.bake_map()
+                item.use_udim = udim
+                item.clear_img = False
+                self.props.save_or_pack = 'SAVE'
+                self.props.create_folder = False
+                with tempfile.TemporaryDirectory() as first, \
+                        tempfile.TemporaryDirectory() as second:
+                    self.props.save_path = first
+                    self.run_pipeline()
+                    # Rebaking into the kept image after moving the output
+                    # folder must not reload it from the empty new folder
+                    self.baker = self.make_baker()
+                    self.props.save_path = second
+                    self.run_pipeline()
+                    files = ['Plane_Albedo_1001.png' if udim else 'Plane_Albedo.png']
+                    self.assertEqual(os.listdir(second), files)
+                    # A kept image whose file was deleted meanwhile rebakes
+                    # from scratch instead of failing on the missing data
+                    bpy.data.images['Plane_Albedo'].buffers_free()
+                    os.remove(os.path.join(second, files[0]))
+                    self.baker = self.make_baker()
+                    self.run_pipeline()
+                    self.assertEqual(os.listdir(second), files)
+
     def test_normal_background_and_antialiasing_preserve_coverage(self):
         self.plane()
         self.bake_map('Normal')

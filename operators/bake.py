@@ -737,6 +737,16 @@ class Baker(Operator):
         if map.clear_img and bake_image is not None:
             bpy.data.images.remove(bake_image)
             bake_image = None
+        if bake_image is not None and not any(
+                w and h for w, h in ([tuple(t.size) for t in bake_image.tiles]
+                                     if bake_image.source == 'TILED' else [tuple(bake_image.size)])):
+            # Reading the sizes loads the pixels; none load when the image's
+            # files were moved or deleted since its last bake
+            self.report(type = {'WARNING'},
+                        message = "Image '%s' has no pixel data (missing file?), baking into a new one"
+                                  % image_name)
+            bpy.data.images.remove(bake_image)
+            bake_image = None
         if bake_image is None:
             self.report(type = {'INFO'}, message = "Creating new image " + image_name)
             bake_image = self.create_image(context, map, image_name, udim_tiles)
@@ -745,7 +755,7 @@ class Baker(Operator):
             # already hold pixels and repairs 0x0 leftovers); never prune (that
             # would destroy baked pixels) and never rescale (scale() only
             # touches the base tile).
-            sizes = {tuple(tile.size) for tile in bake_image.tiles}
+            sizes = {tuple(tile.size) for tile in bake_image.tiles} - {(0, 0)}
             if sizes and sizes != {(map.target_width, map.target_height)}:
                 self.report(type = {'WARNING'},
                             message = 'Reused UDIM image keeps its tile sizes; new tiles added at %dx%d'
@@ -784,14 +794,19 @@ class Baker(Operator):
                 else:
                     # Per-object folder, or per-job folder when batching
                     folder = name
-                bake_image.filepath = abspath(join(abs_save_path, folder, file_stem + extension))
+                filepath = abspath(join(abs_save_path, folder, file_stem + extension))
             else:
-                bake_image.filepath = abspath(join(abs_save_path, file_stem + extension))
-            
-            bake_image.save_render(bake_image.filepath)
+                filepath = abspath(join(abs_save_path, file_stem + extension))
+            # A reused FILE or TILED image loads its pixels lazily from its
+            # current path; reading the sizes loads them (per tile) before
+            # the path moves, and filepath_raw retargets without the reload
+            # that assigning filepath triggers. Otherwise the pixels would be
+            # read from the new path, where no file exists yet.
+            _ = bake_image.size[:], [tile.size[:] for tile in bake_image.tiles]
+            bake_image.filepath_raw = filepath
+            bake_image.save_render(filepath)
 
         # A reused image keeps the size of its last bake, which was downscaled after anti-aliasing.
-        # Resized last, since changing the filepath above can reload the image from disk.
         # Tiled images are skipped: scale() would only resize the base tile.
         if bake_image.source != 'TILED':
             bake_size = (map.target_width * map.final_aa, map.target_height * map.final_aa)
