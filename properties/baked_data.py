@@ -1,5 +1,5 @@
 import bpy
-from . import bakelab_map
+from . import maps
 
 from bpy.types import (
             PropertyGroup
@@ -16,7 +16,7 @@ class BakeObjData(PropertyGroup):
     uv_layer : StringProperty(name='Bake UV Map')
 class BakeMapData(PropertyGroup):
     bake_map : PointerProperty(
-        type=bakelab_map.BakeLabMap
+        type=maps.BakeLabMap
     )
     image : PointerProperty(
         type=bpy.types.Image

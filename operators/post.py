@@ -2,11 +2,11 @@ import bpy
 from bpy.types import (
             Operator
         )
-from .bakelab_tools import (
+from ..utils.tools import (
     SelectObject,
     SelectObjects
 )
-from . import bakelab_compat as compat
+from ..utils import compat
 
 class BakeLab_GenerateMaterials(Operator):
     """Generate materials based on baked datas"""

@@ -21,9 +21,9 @@ SPEC = importlib.util.spec_from_file_location(
 ADDON = importlib.util.module_from_spec(SPEC)
 sys.modules[SPEC.name] = ADDON
 SPEC.loader.exec_module(ADDON)
-BAKE = ADDON.bakelab_bake
-POST = ADDON.bakelab_post
-COMPAT = ADDON.bakelab_compat  # fails loudly if __init__.py stops importing it
+BAKE = ADDON.operators.bake
+POST = ADDON.operators.post
+COMPAT = ADDON.utils.compat  # fails loudly if __init__.py stops importing it
 
 # Blender operators cannot be instantiated as ordinary Python objects. Bind the
 # production methods to a plain object; all scene/node/image operations stay real.
@@ -430,7 +430,7 @@ class BakeLabRegressions(_BakeLabTestBase):
         self.assertEqual(obj.modifiers[-1].uv_layer, 'BakeUV')
 
     def test_presets_extract_current_principled_values(self):
-        presets = ADDON.bakelab_map.BakeLabShowPassPresets.__annotations__['pass_presets'].keywords['items']
+        presets = ADDON.operators.maps.BakeLabShowPassPresets.__annotations__['pass_presets'].keywords['items']
         for names, label, _ in presets:
             with self.subTest(preset=label):
                 mat = bpy.data.materials.new(label)
@@ -916,7 +916,7 @@ class CompatLayer(unittest.TestCase):
 
     def test_color_space_for_every_map_identifier(self):
         identifiers = [item[0] for item in
-                       ADDON.bakelab_map.BakeLabMap.__annotations__['color_space'].keywords['items']
+                       ADDON.properties.maps.BakeLabMap.__annotations__['color_space'].keywords['items']
                        if item]
         image = bpy.data.images.new('compat_cs', 1, 1)
         self.addCleanup(bpy.data.images.remove, image)

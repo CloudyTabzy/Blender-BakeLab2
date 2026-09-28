@@ -19,7 +19,7 @@ Main Features:
 * **Headless baking: run batches from `blender -b` scripts**;
 * **Per-map clear image option for transparent backgrounds**;
 * **Max ray distance support for improved baking control**;
-* **Runs on Blender 4.2 LTS through 5.2 from one build** (version differences handled in `bakelab_compat.py` by capability detection);
+* **Runs on Blender 4.2 LTS through 5.2 from one build** (version differences handled in `utils/compat.py` by capability detection);
 * **Blender Extensions manifest for official extension support**;
 
 ![Screen](bakelab_screen.png)
@@ -57,7 +57,7 @@ This writes `blender_bakelab-<version>.zip`, containing only the files the add-o
   `bpy.ops.bakelab.bake()` after enabling the extension.
 * Progress display shows the running job (index, count, name) during batches.
 * **Blender 4.2 LTS - 5.2 from a single build** (2.1.0 required 5.0+): a new
-  `bakelab_compat.py` holds every version difference, chosen by capability
+  `utils/compat.py` holds every version difference, chosen by capability
   detection rather than version-number checks —
   * the 5.0+ `media_type`/`file_format` coupling when choosing save formats,
     with the scene's original media type restored afterwards;

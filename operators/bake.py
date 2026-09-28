@@ -10,12 +10,12 @@ from array import array
 from math import log2, floor
 from os.path import abspath, join
 
-from .bakelab_tools import (
+from ..utils.tools import (
     SelectObject,
     SelectObjects,
     IsValidMesh
 )
-from . import bakelab_compat as compat
+from ..utils import compat
     
 def iter_child_collections(collection):
     for child in collection.children:

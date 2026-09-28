@@ -9,12 +9,12 @@ from bpy.props import (
             FloatProperty,
             StringProperty
         )
-from .bakelab_tools import (
+from ..utils.tools import (
     SelectObject,
     SelectObjects,
     IsValidMesh
 )
-from . import bakelab_compat as compat
+from ..utils import compat
 
 class Unwrapper(Operator):
     """Unwrap"""
