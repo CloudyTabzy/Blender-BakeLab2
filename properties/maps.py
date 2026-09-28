@@ -17,9 +17,12 @@ MAP_TYPE_ITEMS = (
                 ('Subsurface',  'Subsurface','Subsurface Weight of the material'),
                 ('Transmission','Transmission',''),
                 ('Alpha',       'Alpha','Opacity of the material (wired Alpha inputs)'),
+                ('Metallic',    'Metallic','Metalness of the material'),
+                ('MatID',       'Material ID','A flat, distinct color per material'),
                 ('Shadow',      'Shadow',''),
                 ('Environment', 'Environment',''),
                 ('UV',          'UV',''),
+                ('Position',    'Position','World-space surface position; EXR keeps the full range'),
                 None,
                 ('Combined',    'Combined',''),
                 ('CustomPass',  'Custom Pass',''),
@@ -251,6 +254,19 @@ def apply_type_defaults(item, map_type):
         item.img_name = '*_alpha'
         item.samples  = 4
         item.color_space = 'Non-Color'
+    if map_type == 'Metallic':
+        item.img_name = '*_m'
+        item.samples  = 4
+        item.color_space = 'Non-Color'
+    if map_type == 'MatID':
+        item.img_name = '*_id'
+        item.samples  = 1
+        item.color_space = 'Non-Color'
+    if map_type == 'Position':
+        item.img_name = '*_pos'
+        item.samples  = 1
+        item.color_space = 'Non-Color'
+        item.file_format = 'OPEN_EXR'
     if map_type == 'UV':
         item.img_name = '*_uv'
         item.samples  = 1

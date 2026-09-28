@@ -2,7 +2,7 @@
 ![Thumbnail](images/bakelab_thumbnail_text_logo_small.png)
 BakeLab - A blender addon for baking images.<br>
 Compatible with Blender 4.2 LTS through 5.2 from a single build.<br>
-Current release: **3.1.0** (tag `v3.1`).
+Current release: **3.1.1** (tag `v3.1.1`).
 
 **Fork:** https://github.com/CloudyTabzy/Blender-BakeLab2
 
@@ -39,6 +39,14 @@ blender --command extension build
 ```
 
 This writes `blender_bakelab-<version>.zip`, containing only the files the add-on needs.
+
+## Changes in 3.1.1
+
+* **Alpha map type + detection**: Alpha is now a first-class bake map —
+  it bakes the material's wired Alpha/opacity input into a grayscale
+  mask, bakes opaque for materials without one, and is auto-added when
+  the bake detects a wired Alpha input. Generate Materials wires it into
+  the Principled Alpha and enables transparency so Eevee shows it too.
 
 ## Changes in 3.1.0
 

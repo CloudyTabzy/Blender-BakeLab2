@@ -154,6 +154,14 @@ class BakeLab_GenerateMaterials(Operator):
                 links.new(uvm.outputs['UV'],imgNode.inputs['Vector'])
                 compat.enable_transparency(mat)
                 pass_available = True
+            if bake_map.type == 'Metallic':
+                imgNode = nodes.new(type = 'ShaderNodeTexImage')
+                imgNode.hide = True
+                imgNode.location = -1000, -300
+                imgNode.image = bake_image
+                links.new(imgNode.outputs['Color'], pbr.inputs['Metallic'])
+                links.new(uvm.outputs['UV'], imgNode.inputs['Vector'])
+                pass_available = True
 
             ###### Custom Passes{
             if bake_map.type == 'CustomPass':

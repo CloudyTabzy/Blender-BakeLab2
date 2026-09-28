@@ -6,6 +6,8 @@ from bpy.types import (
             Operator
         )
 
+import colorsys
+import hashlib
 from array import array
 from math import log2, floor
 from os.path import abspath, join
@@ -72,6 +74,9 @@ class Baker(Operator):
         'Transmission': 'TRANSMISSION',
         'Subsurface':   'EMIT', # Subsurface Weight, SSS lighting is part of the Diffuse pass since 2.83
         'Alpha':        'EMIT',
+        'Metallic':     'EMIT',
+        'MatID':        'EMIT',
+        'Position':     'POSITION',
         'CustomPass':   'EMIT',
     }
 
@@ -803,6 +808,12 @@ class Baker(Operator):
                     # A leaf with no alpha socket means opaque, not transparent
                     self.passes_to_emit_node(mat, self.ALPHA_PASS_NAMES,
                                              fallback=(1, 1, 1, 1))
+                if map.type == 'Metallic':
+                    self.ungroup_nodes(mat.node_tree)
+                    self.passes_to_emit_node(mat, 'Metallic,Metalness,Metal')
+                if map.type == 'MatID':
+                    orig = self.material_originals.get(mat, mat)
+                    self.material_to_flat_emit(mat, self.material_id_color(orig.name))
                 if map.type == 'Displacement':
                     self.displacement_to_color(mat)
                     
@@ -1134,6 +1145,27 @@ class Baker(Operator):
                               % (item.type, item.img_name,
                                  item.width, item.height, item.samples))
         return True
+
+    def material_id_color(self, name):
+        """Stable ID color per material name: hash the original material's
+        name (copies get .001 suffixes) into a hue; high saturation keeps
+        neighboring colors separable for masking workflows."""
+        digest = hashlib.md5(name.encode()).digest()
+        hue = int.from_bytes(digest[:2]) / 65536
+        return colorsys.hsv_to_rgb(hue, 0.8, 1.0)
+
+    def material_to_flat_emit(self, mat, color):
+        """Flatten the material output to a solid emission color so an EMIT
+        bake captures it as the material's ID."""
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        out = self.find_node(nodes, 'OUTPUT_MATERIAL')
+        if out is None:
+            out = nodes.new(type = 'ShaderNodeOutputMaterial')
+        emit = nodes.new(type = 'ShaderNodeEmission')
+        compat.input_socket(emit, 'Color', 0).default_value = (*color, 1.0)
+        links.new(compat.output_socket(emit, 'Emission', 0),
+                  compat.input_socket(out, 'Surface', 0))
 
     def material_has_wired_alpha(self, mat):
         """True when the material's opacity depends on nodes: an alpha-named

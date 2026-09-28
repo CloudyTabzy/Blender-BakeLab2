@@ -416,6 +416,41 @@ class BakeLabRegressions(_BakeLabTestBase):
         image = self.scene.BakeLab_Data[0].map_list[0].image
         self.assertAlmostEqual(self.covered_pixel(image), 0.0, places=1)
 
+    def test_metallic_map_bakes_and_wires_generated_material(self):
+        obj, mat = self.plane()
+        bsdf = mat.node_tree.nodes['Principled BSDF']
+        bsdf.inputs['Metallic'].default_value = 0.8
+        item = self.bake_map('Metallic')
+        item.color_space = 'Non-Color'
+        self.run_pipeline()
+        image = self.scene.BakeLab_Data[0].map_list[0].image
+        self.assertAlmostEqual(self.covered_pixel(image), 0.8, places=1)
+        self.assertEqual(bpy.ops.bakelab.generate_mats(), {'FINISHED'})
+        pbr = obj.active_material.node_tree.nodes.get('Principled BSDF')
+        self.assertTrue(pbr.inputs['Metallic'].is_linked)
+
+    def test_position_map_records_surface_position(self):
+        self.plane()
+        self.bake_map('Position')
+        self.run_pipeline()
+        image = self.scene.BakeLab_Data[0].map_list[0].image
+        pixels = image.pixels
+        # Two covered points must differ - the map varies across the surface
+        a = pixels[(4 * image.size[0] + 4) * 4]
+        b = pixels[(4 * image.size[0] + 6) * 4]
+        self.assertNotAlmostEqual(a, b, places=3)
+
+    def test_matid_map_gives_each_material_a_distinct_color(self):
+        self.multi_material_grid()
+        self.bake_map('MatID')
+        self.run_pipeline()
+        image = self.scene.BakeLab_Data[0].map_list[0].image
+        pixels = image.pixels
+        # Bottom half is material A, top half material B - colors must differ
+        bottom = tuple(pixels[i] for i in range((2 * 16 + 4) * 4, (2 * 16 + 4) * 4 + 3))
+        top = tuple(pixels[i] for i in range((12 * 16 + 4) * 4, (12 * 16 + 4) * 4 + 3))
+        self.assertNotEqual(bottom, top)
+
     def test_reused_image_preserves_pixels_outside_bake_uv(self):
         obj, _ = self.plane()
         item = self.bake_map()
