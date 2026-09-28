@@ -10,6 +10,8 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-09-28
+
 ### Added
 
 - **Metallic map type**: EMIT pass from the material's `Metallic`/
@@ -93,7 +95,8 @@ or raising `blender_version_min`.
     "Shader" inputs) bind to the intended socket on every version;
   - saved images keep their exact colors on all supported versions.
 
-[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.1.1...HEAD
+[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.2...HEAD
+[3.2.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.1.1...v3.2
 [3.1.1]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.1...v3.1.1
 [3.1.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3...v3.1
 [3.0.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/releases/tag/v3

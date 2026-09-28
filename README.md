@@ -2,7 +2,7 @@
 ![Thumbnail](images/bakelab_thumbnail_text_logo_small.png)
 BakeLab - A blender addon for baking images.<br>
 Compatible with Blender 4.2 LTS through 5.2 from a single build.<br>
-Current release: **3.1.1** (tag `v3.1.1`).
+Current release: **3.2.0** (tag `v3.2`).
 
 **Fork:** https://github.com/CloudyTabzy/Blender-BakeLab2
 
@@ -39,6 +39,13 @@ blender --command extension build
 ```
 
 This writes `blender_bakelab-<version>.zip`, containing only the files the add-on needs.
+
+## Changes in 3.2.0
+
+* **Metallic, Material ID and Position map types**: Metallic bakes the
+  material's metalness via EMIT and Generate Materials wires it into
+  Principled; MatID gives every material a stable, distinct color for
+  masking; Position records world-space coordinates (EXR recommended).
 
 ## Changes in 3.1.1
 
