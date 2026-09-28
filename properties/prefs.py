@@ -57,6 +57,22 @@ def apply_gpu_backend(prefs, context):
         pass
 
 
+def gpu_fallback_reason(context):
+    """Why a GPU bake will run on the CPU, or None when a GPU is ready (or
+    Cycles cannot tell). Cycles silently uses the CPU without a device."""
+    cycles = cycles_preferences(context)
+    if cycles is None:
+        return None
+    try:
+        ready = cycles.has_active_device()
+    except (AttributeError, RuntimeError):
+        return None
+    if ready:
+        return None
+    return ('No GPU device is enabled for %s - Cycles bakes on the CPU. '
+            'Enable one in Preferences > System' % cycles.compute_device_type)
+
+
 def _gpu_backend_update(self, context):
     apply_gpu_backend(self, context)
 

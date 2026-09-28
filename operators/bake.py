@@ -1,4 +1,5 @@
 import os
+import time
 import traceback
 import bpy
 
@@ -22,12 +23,14 @@ from ..utils.tools import (
     safe_file_name
 )
 from ..utils import compat
-from ..properties.maps import apply_type_defaults
+from ..properties.maps import apply_type_defaults, map_advice
 from ..properties.prefs import (
             addon_preferences,
             apply_gpu_backend,
+            gpu_fallback_reason,
             map_default_overrides
         )
+from ..properties.scene import output_folder_problem
 from ..properties.sets import sets_membership
     
 def iter_child_collections(collection):
@@ -146,6 +149,9 @@ class Baker(Operator):
         self.default_cage_extrusion = bake_settings.cage_extrusion
         self.default_max_ray_distance = bake_settings.max_ray_distance
         self.default_bake_margin    = bake_settings.margin
+        self.default_margin_type    = getattr(bake_settings, 'margin_type', None)
+        self.default_normal_swizzle = tuple(getattr(bake_settings, 'normal_' + axis, None)
+                                            for axis in 'rgb')
         self.default_samples        = self.cycles.samples if self.cycles is not None else None
         self.default_normal_space = bake_settings.normal_space
         
@@ -208,6 +214,9 @@ class Baker(Operator):
         bake_settings.cage_extrusion = self.default_cage_extrusion
         bake_settings.max_ray_distance = self.default_max_ray_distance
         bake_settings.margin  = self.default_bake_margin
+        compat.set_enum(bake_settings, 'margin_type', self.default_margin_type)
+        for axis, value in zip('rgb', self.default_normal_swizzle):
+            compat.set_enum(bake_settings, 'normal_' + axis, value)
         if self.cycles is not None:
             self.cycles.samples = self.default_samples
         compat.set_enum(bake_settings, 'normal_space', self.default_normal_space)
@@ -551,6 +560,10 @@ class Baker(Operator):
         self.cycles.samples = map.samples
         bake_settings = context.scene.render.bake
         bake_settings.normal_space = map.normal_space
+        # DirectX normal maps store green pointing down (-Y)
+        compat.set_enum(bake_settings, 'normal_g',
+                        'NEG_Y' if map.type == 'Normal' and map.normal_format == 'DIRECTX'
+                        else 'POS_Y')
         
         if map.type == 'Combined':
             bake_settings.use_pass_direct            = map.combined_direct
@@ -795,9 +808,13 @@ class Baker(Operator):
                 # it writes one file per tile (name_1001.png, ...)
                 file_stem += '_<UDIM>'
             
-            abs_save_path = bpy.path.abspath(props.save_path)
+            abs_save_path = self.output_folder(props)
             if not os.path.isdir(abs_save_path):
-                os.makedirs(abs_save_path, 0o777)
+                try:
+                    os.makedirs(abs_save_path, 0o777)
+                except OSError as exc:
+                    raise RuntimeError('Cannot create the output folder %s: %s'
+                                       % (abs_save_path, exc.strerror or exc)) from exc
             
             if props.create_folder:
                 if props.bake_mode == "ALL_TO_ONE" and props.batch_source == 'SELECTION':
@@ -827,6 +844,23 @@ class Baker(Operator):
 
         return bake_image
     
+    def output_folder(self, props):
+        """Absolute output folder; RuntimeError naming the fix when the path
+        cannot resolve."""
+        problem = output_folder_problem(props)
+        if problem:
+            raise RuntimeError(problem + ' - pick an absolute output folder, or Output: Pack')
+        return bpy.path.abspath(props.save_path)
+
+    def report_map_advice(self, props, maps):
+        """Surface the panel's 'caution' advice in the bake report too, so a
+        headless run or a closed panel still learns about it."""
+        for map in maps:
+            for level, text in map_advice(map, props):
+                if level == 'caution':
+                    self.report(type = {'WARNING'},
+                                message = "Map '%s' (%s): %s" % (map.img_name, map.type, text))
+
     def SetSaveImageSettings(self, context, map):
         img_settings = context.scene.render.image_settings
         accepted_format = compat.set_image_file_format(img_settings, map.file_format)
@@ -1151,10 +1185,15 @@ class Baker(Operator):
         props = scene.BakeLabProps
 
         props.bake_state = 'BAKING'
+        start_time = time.perf_counter()
         scene.render.engine = 'CYCLES'
         self.cycles.device = props.compute_device
         if props.compute_device == 'GPU':
             apply_gpu_backend(addon_preferences(context), context)
+            reason = gpu_fallback_reason(context)
+            if reason:
+                self.report(type = {'WARNING'}, message = reason)
+        compat.set_enum(scene.render.bake, 'margin_type', props.margin_type)
         if not self.headless:
             # Pausing the viewport preview only matters with a UI, and Cycles'
             # update callback tag_redraws a nonexistent area in background mode
@@ -1165,6 +1204,8 @@ class Baker(Operator):
         scene.render.bake.cage_object = None
 
         try:
+            if props.save_or_pack == 'SAVE':
+                self.output_folder(props)
             jobs = self.build_jobs(context)
         except RuntimeError as exc:
             self.report(type = {'ERROR'}, message = str(exc))
@@ -1199,9 +1240,11 @@ class Baker(Operator):
             self.report(type = {'INFO'},
                         message = 'Wired Alpha input detected - added an Alpha '
                                   'map ("%s") to capture it' % item.img_name)
+        self.report_map_advice(props, [map for map in scene.BakeLabMaps if map.enabled])
         props.baking_job_index = 0
         props.baking_job_count = len(jobs)
         failed_jobs = []
+        baked_data_start = len(scene.BakeLab_Data)
 
         for job in jobs:
             props.baking_job_index += 1
@@ -1237,6 +1280,12 @@ class Baker(Operator):
                         message = 'Baked with %d failed job(s): %s'
                                   % (len(failed_jobs), ', '.join(failed_jobs)))
         props.bake_state = 'BAKED'
+        images = sum(len(entry.map_list)
+                     for entry in list(scene.BakeLab_Data)[baked_data_start:])
+        self.report(type = {'INFO'},
+                    message = 'Baked %d image%s in %.1f s'
+                              % (images, '' if images == 1 else 's',
+                                 time.perf_counter() - start_time))
         yield 0 #Done
 
     def used_materials(self, obj):

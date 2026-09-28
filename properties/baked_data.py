@@ -42,5 +42,6 @@ class BakeLab_BakedData(PropertyGroup):
         item.bake_map.type = bake_map.type
         item.bake_map.pass_name = bake_map.pass_name
         item.bake_map.normal_space = bake_map.normal_space
+        item.bake_map.normal_format = bake_map.normal_format
         
         item.image = image

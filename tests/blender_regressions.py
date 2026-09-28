@@ -24,6 +24,8 @@ SPEC.loader.exec_module(ADDON)
 BAKE = ADDON.operators.bake
 POST = ADDON.operators.post
 COMPAT = ADDON.utils.compat  # fails loudly if __init__.py stops importing it
+MAPS = ADDON.properties.maps
+PANEL = ADDON.ui.panel
 
 # Blender operators cannot be instantiated as ordinary Python objects. Bind the
 # production methods to a plain object; all scene/node/image operations stay real.
@@ -1586,6 +1588,120 @@ class AddonPrefs(_BakeLabTestBase):
         self.assertEqual(prefs.map_defaults[0].img_name, '*_custom')
 
 
+class QualityAndAdvice(_BakeLabTestBase):
+    """Map advice, preflight cautions, fallbacks and the quality options
+    (margin type, normal format)."""
+
+    def advice(self, item, level=None):
+        return [text for lvl, text in MAPS.map_advice(item, self.props)
+                if level is None or lvl == level]
+
+    def test_shipped_defaults_raise_no_cautions(self):
+        for map_type in MAPS.MAP_TYPE_DEFAULTS:
+            item = self.scene.BakeLabMaps.add()
+            MAPS.apply_type_defaults(item, map_type)
+            for output in ('PACK', 'SAVE'):
+                self.props.save_or_pack = output
+                self.assertEqual(self.advice(item, 'caution'), [], (map_type, output))
+
+    def test_map_advice_flags_degrading_settings(self):
+        item = self.bake_map('Normal')
+        item.color_space = 'sRGB'
+        self.assertTrue(any('Non-Color' in t for t in self.advice(item, 'caution')))
+        rough = self.bake_map('Roughness')
+        rough.color_space = 'Non-Color'
+        rough.file_format = 'JPEG'
+        self.props.save_or_pack = 'SAVE'
+        self.assertTrue(any('JPEG' in t for t in self.advice(rough, 'caution')))
+        ao = self.bake_map('AO')
+        ao.color_space = 'Non-Color'
+        ao.samples = 4
+        self.assertTrue(any('Noisy' in t for t in self.advice(ao, 'info')))
+        disp = self.bake_map('Displacement')
+        self.assertTrue(any('32 bit float' in t for t in self.advice(disp, 'info')))
+        big = self.bake_map()
+        big.width = big.height = 8192
+        big.aa_override = 2
+        self.assertTrue(any('16384x16384' in t for t in self.advice(big, 'caution')))
+
+    def test_bake_reports_cautions_gpu_fallback_and_summary(self):
+        self.plane()
+        item = self.bake_map('Normal')  # data map left in sRGB
+        self.props.compute_device = 'GPU'  # no GPU device under -b
+        self.run_pipeline()
+        messages = self.reported_messages()
+        self.assertTrue(any('Non-Color' in m for m in messages), messages)
+        self.assertTrue(any('bakes on the CPU' in m for m in messages), messages)
+        self.assertTrue(any(m.startswith('Baked 1 image in') for m in messages), messages)
+        self.assertIsNotNone(item)
+
+    def test_margin_type_and_normal_format_apply_and_restore(self):
+        obj, mat = self.plane()
+        nodes = mat.node_tree.nodes
+        tilt = nodes.new('ShaderNodeNormalMap')
+        tilt.inputs['Color'].default_value = (0.5, 0.8, 1.0, 1.0)  # leans to +Y
+        mat.node_tree.links.new(tilt.outputs['Normal'],
+                                nodes['Principled BSDF'].inputs['Normal'])
+        bake = self.scene.render.bake
+        before = (bake.margin_type, bake.normal_g)
+        self.props.margin_type = 'EXTEND'
+        greens = {}
+        for fmt in ('OPENGL', 'DIRECTX'):
+            self.scene.BakeLabMaps.clear()
+            item = self.bake_map('Normal')
+            item.normal_format = fmt
+            item.img_name = '*_' + fmt
+            seen = []
+            run_bake = self.baker.run_bake
+            def spy(bake_type, image, run_bake=run_bake, seen=seen):
+                seen.append((bake.margin_type, bake.normal_g))
+                return (yield from run_bake(bake_type, image))
+            self.baker.run_bake = spy
+            self.run_pipeline()
+            self.assertEqual(seen, [('EXTEND', 'NEG_Y' if fmt == 'DIRECTX' else 'POS_Y')])
+            self.assertEqual((bake.margin_type, bake.normal_g), before)
+            image = self.scene.BakeLab_Data[-1].map_list[0].image
+            greens[fmt] = image.pixels[(4 * image.size[0] + 4) * 4 + 1]
+            self.baker = self.make_baker()
+        self.assertGreater(greens['OPENGL'], 0.6)
+        self.assertLess(greens['DIRECTX'], 0.4)
+        # Generate Materials flips a DirectX map's green back for Blender
+        self.assertEqual(bpy.ops.bakelab.generate_mats(), {'FINISHED'})
+        tree = obj.active_material.node_tree
+        normal_map = tree.nodes['Principled BSDF'].inputs['Normal'].links[0].from_node
+        self.assertEqual(normal_map.inputs['Color'].links[0].from_node.bl_idname,
+                         'ShaderNodeCombineColor')
+        self.assertTrue(any(n.bl_idname == 'ShaderNodeMath' and n.operation == 'SUBTRACT'
+                            for n in tree.nodes))
+
+    def test_unusable_output_folder_is_reported_up_front(self):
+        self.plane()
+        self.bake_map()
+        self.props.save_or_pack = 'SAVE'
+        for path, expected in (('', 'No output folder'), ('//bakes', 'Save .blend')):
+            with self.subTest(path=path):
+                self.baker = self.make_baker()
+                self.props.save_path = path
+                context = self.context()
+                self.baker.execute(context)
+                self.assertEqual(self.drive_to_end(context), {'CANCELLED'})
+                self.assertTrue(any(expected in m for m in self.reported_messages()),
+                                self.reported_messages())
+
+    def test_preflight_cautions_do_not_block(self):
+        obj, _ = self.plane()
+        obj.select_set(True)
+        for _ in range(2):
+            self.bake_map().img_name = 'Same'
+        checks = PANEL.bake_readiness(bpy.context)
+        self.assertTrue(any(status == 'caution' and "'Same'" in text
+                            for status, text in checks), checks)
+        self.assertFalse(any(status == 'warn' for status, _ in checks), checks)
+        self.props.save_or_pack = 'SAVE'
+        self.props.save_path = ''
+        self.assertTrue(any(status == 'warn' for status, _ in PANEL.bake_readiness(bpy.context)))
+
+
 class CompatLayer(unittest.TestCase):
     """Version-agnostic invariants of bakelab_compat, run on every build."""
 
@@ -1678,6 +1794,7 @@ if __name__ == '__main__':
                 loader.loadTestsFromTestCase(GridMaps),
                 loader.loadTestsFromTestCase(TextureSets),
                 loader.loadTestsFromTestCase(AddonPrefs),
+                loader.loadTestsFromTestCase(QualityAndAdvice),
                 loader.loadTestsFromTestCase(CompatLayer),
             ])
             result = unittest.TextTestRunner(verbosity=2).run(suite)

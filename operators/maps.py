@@ -7,7 +7,20 @@ from bpy.props import (
             BoolProperty,
             FloatProperty
         )
-from ..properties.maps import MAP_TYPE_ITEMS, apply_type_defaults
+from ..properties.maps import (
+            MAP_TYPE_ITEMS,
+            FILE_FORMAT_ITEMS,
+            FLOAT_DEPTH_DESC,
+            UDIM_DESC,
+            PNG_DEPTH_ITEMS,
+            PNG_COMPRESSION_DESC,
+            JPG_QUALITY_DESC,
+            EXR_DEPTH_ITEMS,
+            EXR_CODEC_DESC,
+            EXR_CODEC_32_ITEMS,
+            EXR_CODEC_16_ITEMS,
+            apply_type_defaults
+        )
 from ..properties.prefs import (
             addon_preferences,
             map_default_overrides,
@@ -26,98 +39,83 @@ class BakeLabAddMapItem(Operator):
             default = 'Albedo'
         )
     width: IntProperty(name = 'Width',default = 1024,
-                                    min = 1, soft_max = 16384)
+                       description = 'Image width in pixels (before anti-aliasing)',
+                       min = 1, soft_max = 16384)
     height: IntProperty(name = 'Height',default = 1024,
-                                    min = 1, soft_max = 16384)
+                        description = 'Image height in pixels (before anti-aliasing)',
+                        min = 1, soft_max = 16384)
     image_scale: FloatProperty(name = 'Image Scale',default = 1,
-                                    min = 0)
+                               description = 'Multiplier on the adaptive size',
+                               min = 0)
 
-    float_depth: BoolProperty(name = '32 bit float', default = False)
+    float_depth: BoolProperty(name = '32 bit float', description = FLOAT_DEPTH_DESC,
+                              default = False)
     use_udim: BoolProperty(
         name = 'UDIM',
-        description = 'Bake one tile per UV tile (1001+). Tiles bake at final '
-                      'size; anti-aliasing is unavailable for UDIM maps',
+        description = UDIM_DESC,
         default = False
     )
     file_format : EnumProperty(
                 name = 'Format',
-                items =  (
-                    ('PNG',  'PNG', ''),
-                    ('JPEG', 'JPEG', ''),
-                    ('OPEN_EXR',  'OpenEXR', '')
-                )
+                description = 'File format of the saved image',
+                items =  FILE_FORMAT_ITEMS
             )
     png_channels : EnumProperty(
                 name = 'Color',
-                items =  (('BW','BW',''),
-                        ('RGB','RGB',''),
-                        ('RGBA','RGBA','')),
+                description = 'Channels written to the file',
+                items =  (('BW','BW','Grayscale, one channel'),
+                        ('RGB','RGB','Color, no alpha'),
+                        ('RGBA','RGBA','Color with alpha')),
                 default = 'RGB'
             )
     png_depth : EnumProperty(
                 name = 'Depth',
-                description = 'Color Depth',
-                items =  (('8','8 byte',''),
-                        ('16','16 byte','')),
+                description = 'Color depth per channel',
+                items =  PNG_DEPTH_ITEMS,
                 default = '8'
             )
     png_compression : IntProperty(
                 name = 'Compression',
                 default = 15,
-                description = 'Compression',
+                description = PNG_COMPRESSION_DESC,
                 min = 0, max = 100
             )
     jpg_channels : EnumProperty(
                 name = 'Color',
-                items =  (('BW','BW',''),
-                        ('RGB','RGB','')),
+                description = 'Channels written to the file',
+                items =  (('BW','BW','Grayscale, one channel'),
+                        ('RGB','RGB','Color')),
                 default = 'RGB'
             )
     jpg_quality : IntProperty(
                 name = 'Quality',
                 default = 90,
-                description = 'Quality',
+                description = JPG_QUALITY_DESC,
                 min = 0, max = 100
             )
     exr_channels : EnumProperty(
                 name = 'Color',
-                items =  (('RGB','RGB',''),
-                        ('RGBA','RGBA','')),
+                description = 'Channels written to the file',
+                items =  (('RGB','RGB','Color, no alpha'),
+                        ('RGBA','RGBA','Color with alpha')),
                 default = 'RGB'
             )
     exr_depth : EnumProperty(
                 name = 'Color Depth',
                 description = 'Bits depth per channel',
-                items =  (('16', 'Half (16)',''),
-                        ('32',   'Full (32)','')),
+                items =  EXR_DEPTH_ITEMS,
                 default = '32'
             )
     exr_codec_32 : EnumProperty(
                 name = 'Codec',
-                items =  (
-                    ('NONE', 'None',           ''),
-                    ('PXR24','Pxr24 (lossy)',  ''),
-                    ('ZIP',  'ZIP (lossless)', ''),
-                    ('PIZ',  'PIZ (lossless)', ''),
-                    ('RLE',  'RLE (lossless)', ''),
-                    ('ZIPS', 'ZIPS (lossless)',''),
-                    ('DWAA', 'DWAA (lossy)',   '')
-                ),
+                description = EXR_CODEC_DESC,
+                items =  EXR_CODEC_32_ITEMS,
                 default = 'ZIP'
             )
     exr_codec_16 : EnumProperty(
                 name = 'Codec',
-                items =  (
-                    ('NONE', 'None',           ''),
-                    ('PXR24','Pxr24 (lossy)',  ''),
-                    ('ZIP',  'ZIP (lossless)', ''),
-                    ('PIZ',  'PIZ (lossless)', ''),
-                    ('RLE',  'RLE (lossless)', ''),
-                    ('ZIPS', 'ZIPS (lossless)',''),
-                    ('B44',  'B44 (lossy)',   ''),
-                    ('B44A', 'B44A (lossy)',   ''),
-                    ('DWAA', 'DWAA (lossy)',   '')
-                ),
+                description = EXR_CODEC_DESC,
+                items =  EXR_CODEC_16_ITEMS,
                 default = 'ZIP'
             )
 

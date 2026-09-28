@@ -1,8 +1,12 @@
 from bpy.types import (
             Panel
         )
+from collections import Counter
+
 from ..utils.tools import material_has_wired_alpha, pair_high_low
-from ..properties.prefs import addon_preferences, cycles_preferences
+from ..properties.maps import map_advice
+from ..properties.prefs import addon_preferences, cycles_preferences, gpu_fallback_reason
+from ..properties.scene import output_folder_problem
 from ..properties.sets import sets_membership
 
 
@@ -10,7 +14,8 @@ def bake_readiness(context):
     """Preflight checklist for the Bake button. Mirrors what the baker
     validates and auto-fixes, so the panel can say what will happen
     before the button is clicked. Returns (status, label) pairs;
-    status is 'ok', 'info' or 'warn'."""
+    status is 'ok', 'info', 'caution' (likely a mistake, but bakeable)
+    or 'warn' (a blocker)."""
     props = context.scene.BakeLabProps
     checks = []
     if props.batch_source == 'NAME_PAIRS':
@@ -106,12 +111,31 @@ def bake_readiness(context):
                for o in context.selected_objects if o.type == 'MESH'
                for slot in o.material_slots):
             checks.append(('info', 'Wired Alpha input - an Alpha map will be added'))
+    if props.save_or_pack == 'SAVE':
+        problem = output_folder_problem(props)
+        if problem:
+            checks.append(('warn', problem))
+    enabled_maps = [m for m in maps if m.enabled]
+    shared = [name for name, count in Counter(m.img_name for m in enabled_maps).items()
+              if count > 1]
+    if shared:
+        checks.append(('caution', "Duplicate image name '%s'" % shared[0]))
+    # One line per map; the map's own settings list the details
+    cautions = ['%s: check map settings' % m.type for m in enabled_maps
+                if any(level == 'caution' for level, _ in map_advice(m, props))]
+    for text in cautions[:3]:
+        checks.append(('caution', text))
+    if len(cautions) > 3:
+        checks.append(('caution', '%d more maps to check' % (len(cautions) - 3)))
     if props.compute_device == 'GPU':
-        backend = getattr(addon_preferences(context), 'gpu_backend', 'AUTO')
-        if backend == 'AUTO':
-            cycles = cycles_preferences(context)
-            backend = cycles.compute_device_type if cycles is not None else 'NONE'
-        checks.append(('info', 'GPU backend: ' + backend))
+        if gpu_fallback_reason(context):
+            checks.append(('caution', 'No GPU enabled: CPU bake'))
+        else:
+            backend = getattr(addon_preferences(context), 'gpu_backend', 'AUTO')
+            if backend == 'AUTO':
+                cycles = cycles_preferences(context)
+                backend = cycles.compute_device_type if cycles is not None else 'NONE'
+            checks.append(('info', 'GPU backend: ' + backend))
     return checks
 
 
@@ -142,7 +166,8 @@ class BakeLabUI(Panel):
 
             box = layout.box()
             col = box.column(align = True)
-            icons = {'ok': 'CHECKMARK', 'info': 'INFO', 'warn': 'CANCEL'}
+            icons = {'ok': 'CHECKMARK', 'info': 'INFO', 'caution': 'ERROR',
+                     'warn': 'CANCEL'}
             for status, label in checks:
                 col.label(text = label, icon = icons[status])
             
@@ -165,6 +190,7 @@ class BakeLabUI(Panel):
                 col.use_property_split = True
                 col.use_property_decorate = False
                 col.prop(props, "bake_margin")
+                col.prop(props, "margin_type")
                 if props.bake_mode == "TO_ACTIVE":
                     col.prop(props, "cage_extrusion")
                     col.prop(props, "max_ray_distance")
@@ -315,6 +341,7 @@ class BakeLabUI(Panel):
                             
                         if item.type == 'Normal':
                             box.prop(item, "normal_space")
+                            box.prop(item, "normal_format")
                             
                         subcol.separator()
                         
@@ -332,12 +359,8 @@ class BakeLabUI(Panel):
                     col.prop(item, 'color_space')
                     col.prop(item, "deep_search")
                 
-                if item.type == 'Displacement':
-                    if not item.float_depth:
-                        col.label(text="Use 32 bit float type", icon = 'INFO')
-                    if props.save_or_pack == 'SAVE':
-                        if item.file_format != 'OPEN_EXR':
-                            col.label(text="Use EXR format", icon = 'INFO')
+                for level, text in map_advice(item, props):
+                    col.label(text = text, icon = 'ERROR' if level == 'caution' else 'INFO')
                 
                 col.separator()
                     

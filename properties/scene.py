@@ -28,6 +28,15 @@ def updateSavePath(self, context):
         if abs_path != self.save_path:
             self.save_path = abs_path
 
+def output_folder_problem(props):
+    """Why the Save output folder cannot be used, or None. A '//' path in
+    an unsaved file would resolve against Blender's working directory."""
+    if not props.save_path.strip():
+        return 'No output folder set'
+    if props.save_path.startswith('//') and not bpy.data.is_saved:
+        return 'Save .blend for // folder'
+    return None
+
 class BakeLabProperties(PropertyGroup):
     bake_state: EnumProperty(
             items = (
@@ -41,9 +50,14 @@ class BakeLabProperties(PropertyGroup):
             name = "Mode",
             description = 'Baking mode',
             items = (
-                ("INDIVIDUAL", "Individual Objects", "", "PIVOT_INDIVIDUAL", 1),
-                ("ALL_TO_ONE", "All To One Image",   "", "PROP_ON", 2),
-                ("TO_ACTIVE",  "Selected to active", "", "PIVOT_ACTIVE", 3)
+                ("INDIVIDUAL", "Individual Objects",
+                 "One image set per object, named after it", "PIVOT_INDIVIDUAL", 1),
+                ("ALL_TO_ONE", "All To One Image",
+                 "One shared image set (atlas) for all objects; their UVs must "
+                 "not overlap", "PROP_ON", 2),
+                ("TO_ACTIVE",  "Selected to active",
+                 "Project the selected (high-poly) objects onto the active "
+                 "(low-poly) one; only the active object needs UVs", "PIVOT_ACTIVE", 3)
             ),
             default = "INDIVIDUAL"
         )
@@ -71,10 +85,14 @@ class BakeLabProperties(PropertyGroup):
         )
     batch_include_children : BoolProperty(
             name = 'Include Child Collections',
+            description = 'Also make one job per nested collection',
             default = True
         )
     cage_extrusion : FloatProperty(
             name = 'Cage Extrusion', default = 0.05,
+            description = 'Distance the target surface is pushed outward to cast '
+                          'rays inward; raise it when parts of the high-poly are '
+                          'missing, lower it when neighboring parts bleed in',
             min = 0, soft_max = 1
         )
     max_ray_distance : FloatProperty(
@@ -84,13 +102,16 @@ class BakeLabProperties(PropertyGroup):
         )
     pre_join_mesh : BoolProperty(
             name = 'Pre-Join Meshes', default = False,
-            description = 'Create one merged mesh and bake to it using ray-tracing',
+            description = 'Create one merged mesh and bake to it using ray-tracing. '
+                          'Keeps overlapping objects from baking over each other, '
+                          'at the cost of a projection (Cage Extrusion) step',
         )
     image_size : EnumProperty(
             name = 'Image Size',
             items = (
-                ('FIXED',    'Fixed',    "Fixed image size"),
-                ('ADAPTIVE', 'Adaptive', "Image size by object's surface area")
+                ('FIXED',    'Fixed',    "Each map sets its own width and height"),
+                ('ADAPTIVE', 'Adaptive', "Size from the objects' surface area and "
+                                         "Texels Per Unit, for consistent texel density")
             ),
             default = 'FIXED'
         )
@@ -100,55 +121,79 @@ class BakeLabProperties(PropertyGroup):
         )
     texel_per_unit : FloatProperty(
             name = 'Texels Per Unit',
+            description = 'Pixels per scene unit (meter) of surface; 512-1024 for '
+                          'hero assets, 100-256 for background props',
             default = 100,
             min = 0
         )
     image_min_size    : IntProperty(
             name = 'Min Size',
+            description = 'Smallest adaptive image size in pixels',
             default = 32,
             min = 1,
             update=updateAdaptiveImageMaxSize
         )
     image_max_size    : IntProperty(
             name = 'Max Size',
+            description = 'Largest adaptive image size in pixels',
             default = 2048,
             min = 1,
             update=updateAdaptiveImageMinSize
         )
     round_adaptive_image : BoolProperty(
         name = 'Round to power of two',
+        description = 'Round adaptive sizes to 256, 512, 1024... which game '
+                      'engines mipmap and compress best',
         default = True
     )
+    margin_type : EnumProperty(
+            name = 'Margin Type',
+            description = 'How the margin is filled',
+            items = (
+                ('ADJACENT_FACES', 'Adjacent Faces',
+                 'Fill with pixels from the neighboring faces across the seam; '
+                 'hides seams best'),
+                ('EXTEND', 'Extend', 'Repeat the edge pixels outward; the '
+                                     'classic, faster fill'),
+            ),
+            default = 'ADJACENT_FACES'
+        )
     anti_alias : IntProperty(
             name = 'Anti-aliasing', default = 1,
-            description = 'Anti-aliasing (1 = No Anti-aliasing)',
+            description = 'Bake at N times the size and scale down, smoothing '
+                          'jagged edges (1 = off). Costs N x N the time and memory',
             min = 1, soft_max = 8
         )
     bake_margin    : IntProperty(
             name = 'Bake Margin',
-            description = 'Extends the baked result as a post process filter',
+            description = 'Pixels the result is extended past UV island edges, so '
+                          'mipmaps and filtering do not pull in the background. '
+                          '4-8 for 1K, 16 for 4K',
             default = 4,
             min = 0,
             soft_max = 64
         )
     global_image_name  : StringProperty(
             name = 'Image Name',
-            description = 'Names of baked images',
+            description = "Replaces '*' in the map image names when all objects "
+                          "bake into one image set",
             default = "Atlas",
         )
     compute_device : EnumProperty(
             name = 'Device',
-            description = 'Compute Device',
+            description = 'Device Cycles bakes on',
             items =  (
-                ('GPU','GPU Compute',''),
-                ('CPU','CPU','')
+                ('GPU','GPU Compute','Much faster when a GPU is set up in '
+                                     'Preferences > System; falls back to the CPU otherwise'),
+                ('CPU','CPU','Always available; slower')
             )
         )
     save_or_pack : EnumProperty(
                 name  = 'Output',
+                description = 'Where baked images go',
                 items =  (
-                    ('PACK','Pack',''),
-                    ('SAVE','Save','')
+                    ('PACK','Pack','Keep images inside the .blend file'),
+                    ('SAVE','Save','Write image files to the output folder')
                 ),
                 default = 'PACK'
             )
@@ -159,12 +204,14 @@ class BakeLabProperties(PropertyGroup):
         )
     folder_name  : StringProperty(
             name = 'Folder name',
-            description = 'Name of the folder',
+            description = 'Subfolder for a single All To One bake; batches '
+                          'use one folder per job',
             default = "Selection",
         )
     save_path : StringProperty(
                 default=expanduser("~"),
                 name="Folder",
+                description="Output folder for saved images",
                 subtype="DIR_PATH",
                 options=compat.PATH_PROPERTY_OPTIONS,
                 update=updateSavePath
@@ -175,12 +222,13 @@ class BakeLabProperties(PropertyGroup):
 
     apply_only_selected : BoolProperty(
         name = 'Apply only to Selected',
-        description = 'Apply only to selected objects',
+        description = 'Only change the selected objects when applying results',
         default = True
     )
     make_single_user : BoolProperty(
         name = 'Make single user',
-        description = 'Make data single user',
+        description = 'Give each object its own mesh copy first, so shared '
+                      'meshes elsewhere keep their materials',
         default = True
     )
     # Display

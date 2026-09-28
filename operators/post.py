@@ -24,6 +24,23 @@ class BakeLab_GenerateMaterials(Operator):
             bpy.data.materials.remove(new_mat)
             return None
         
+    def flip_green(self, nodes, links, color, location):
+        """color with its green channel inverted (1 - G); returns the output."""
+        sep = nodes.new(type = 'ShaderNodeSeparateColor')
+        invert = nodes.new(type = 'ShaderNodeMath')
+        invert.operation = 'SUBTRACT'
+        compat.input_socket(invert, 'Value', 0).default_value = 1.0
+        combine = nodes.new(type = 'ShaderNodeCombineColor')
+        for node, dx in ((sep, 0), (invert, 60), (combine, 120)):
+            node.hide = True
+            node.location = location[0] + dx, location[1]
+        links.new(color, compat.input_socket(sep, 'Color', 0))
+        links.new(compat.output_socket(sep, 'Red', 0), compat.input_socket(combine, 'Red', 0))
+        links.new(compat.output_socket(sep, 'Green', 1), compat.input_socket(invert, 'Value', 1))
+        links.new(compat.output_socket(invert, 'Value', 0), compat.input_socket(combine, 'Green', 1))
+        links.new(compat.output_socket(sep, 'Blue', 2), compat.input_socket(combine, 'Blue', 2))
+        return compat.output_socket(combine, 'Color', 0)
+
     def add_nodes(self, bakeMapData, mat):
         nodes = mat.node_tree.nodes
         links = mat.node_tree.links
@@ -87,7 +104,11 @@ class BakeLab_GenerateMaterials(Operator):
                 nmNode.hide = True
                 nmNode.location = -700, -500
                 nmNode.space = bake_map.normal_space
-                links.new(imgNode.outputs['Color'], nmNode.inputs['Color'])
+                color = imgNode.outputs['Color']
+                if bake_map.normal_format == 'DIRECTX':
+                    # Blender reads normals as OpenGL (+Y): flip green back
+                    color = self.flip_green(nodes, links, color, (-850, -560))
+                links.new(color, nmNode.inputs['Color'])
                 links.new(nmNode.outputs['Normal'], pbr.inputs['Normal'])
                 links.new(uvm.outputs['UV'], imgNode.inputs['Vector'])
                 pass_available = True
