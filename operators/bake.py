@@ -321,15 +321,25 @@ class Baker(Operator):
         if not has_bsdf_inputs:
             emit = nodes.new(type = 'ShaderNodeEmission')
             combine = nodes.new(type = 'ShaderNodeCombineColor')
-            ao = nodes.new(type = 'ShaderNodeAmbientOcclusion')
-            links.new(compat.output_socket(ao, 'AO', 1), combine.inputs['Red'])
+            ao = self.new_ao_node(nodes)
+            links.new(compat.output_socket(ao, 'AO', 1),
+                      compat.input_socket(combine, 'Red', 0))
             self.feed_channel(node, ('Roughness',),
-                              combine.inputs['Green'], nodes, links)
+                              compat.input_socket(combine, 'Green', 1), nodes, links)
             self.feed_channel(node, ('Metallic', 'Metalness', 'Metal'),
-                              combine.inputs['Blue'], nodes, links)
-            links.new(combine.outputs['Color'],
+                              compat.input_socket(combine, 'Blue', 2), nodes, links)
+            links.new(compat.output_socket(combine, 'Color', 0),
                       compat.input_socket(emit, 'Color', 0))
             links.new(compat.output_socket(emit, 'Emission', 0), src_socket)
+
+    def new_ao_node(self, nodes):
+        """AO node agreeing with the AO bake pass, which traces as far as
+        the world's AO distance (10 m without a world, the WorldLighting
+        default); the node alone would stop at 1 m."""
+        ao = nodes.new(type = 'ShaderNodeAmbientOcclusion')
+        world = bpy.context.scene.world
+        compat.input_socket(ao, 'Distance', 1).default_value =             world.light_settings.distance if world is not None else 10.0
+        return ao
 
     def aorm_to_emit_node(self, mat):
         nodes = mat.node_tree.nodes
@@ -340,7 +350,7 @@ class Baker(Operator):
         else:
             out = nodes.new(type = 'ShaderNodeOutputMaterial')
             emit = nodes.new(type = 'ShaderNodeEmission')
-            ao = nodes.new(type = 'ShaderNodeAmbientOcclusion')
+            ao = self.new_ao_node(nodes)
             links.new(compat.output_socket(ao, 'AO', 1),
                       compat.input_socket(emit, 'Color', 0))
             links.new(compat.output_socket(emit, 'Emission', 0),

@@ -468,6 +468,26 @@ class BakeLabRegressions(_BakeLabTestBase):
         self.assertAlmostEqual(image.pixels[i + 2], 0.4, places=1)
         self.assertGreater(image.pixels[i], 0.8)  # open plane is unoccluded
 
+    def test_aorm_occlusion_matches_ao_map_distance(self):
+        obj, mat = self.plane()
+        # A roof 3 m up: inside the world's 10 m AO distance, beyond the
+        # AO node's own 1 m default
+        bpy.ops.mesh.primitive_cube_add(size=1, location=(0, 0, 3))
+        bpy.context.object.scale = (60, 60, 1)
+        obj.select_set(True)
+        bpy.context.object.select_set(False)
+        bpy.context.view_layer.objects.active = obj
+        for map_type in ('AO', 'AORM'):
+            self.bake_map(map_type).samples = 16
+        self.run_pipeline()
+        def mean_red(image):  # over the covered pixels, to average out noise
+            px = image.pixels[:]
+            reds = [px[i] for i in range(0, len(px), 4) if px[i + 3] > 0.5]
+            return sum(reds) / len(reds)
+        ao, aorm = (mean_red(data.image) for data in self.scene.BakeLab_Data[0].map_list)
+        self.assertLess(ao, 0.5)
+        self.assertAlmostEqual(aorm, ao, delta=0.1)
+
     def test_aorm_generate_splits_channels(self):
         obj, mat = self.plane()
         item = self.bake_map('AORM')
