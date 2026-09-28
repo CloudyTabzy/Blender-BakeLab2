@@ -701,6 +701,9 @@ class Baker(Operator):
             area = 0
             for obj in objects:
                 area += self.calc_surf_area(obj)
+            # Every UDIM tile gets the full size, so the texel density target
+            # applies to each tile's share of the surface
+            area /= max(len(udim_tiles), 1)
             size = max(pow(area, 0.5) * props.texel_per_unit * map.image_scale, 1)
             if props.round_adaptive_image:
                 size = self.round_to_power_of_2(size)

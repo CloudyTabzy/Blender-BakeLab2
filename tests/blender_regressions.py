@@ -972,6 +972,23 @@ class UdimBaking(_BakeLabTestBase):
             loop.uv.x *= 2  # one quad across tiles 1001 and 1002
         self.assertEqual(self.baker.collect_udim_tiles([full]), {1001, 1002})
 
+    def test_udim_adaptive_size_splits_area_across_tiles(self):
+        tile_a, _ = self.udim_plane('TileA', (1, 0, 0, 1), 0, 0)
+        self.udim_plane('TileB', (0, 1, 0, 1), 1, 0)
+        tile_a.select_set(True)
+        self.props.bake_mode = 'ALL_TO_ONE'
+        self.props.image_size = 'ADAPTIVE'
+        self.props.texel_per_unit = 8
+        self.props.round_adaptive_image = False
+        self.props.image_min_size = 1
+        item = self.bake_map()
+        item.use_udim = True
+        item.img_name = 'Atlas'
+        self.run_pipeline()
+        image = self.scene.BakeLab_Data[-1].map_list[0].image
+        # Two 2x2 planes, one per tile: each tile holds 4 units² -> 2 * 8 px
+        self.assertEqual({tuple(t.size) for t in image.tiles}, {(16, 16)})
+
     def test_udim_tiles_read_modifier_uv_offsets(self):
         obj, _ = self.udim_plane('P', (1, 0, 0, 1), 0, 0)
         mirror = obj.modifiers.new('Mirror', 'MIRROR')
