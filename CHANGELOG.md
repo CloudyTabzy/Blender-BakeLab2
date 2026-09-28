@@ -10,6 +10,15 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+## [3.10.1] - 2026-09-28
+
+### Fixed
+
+- **Import Textures** displacement channel: the Bump node's Distance is
+  pinned to 1.0. Blender 4.5 changed the node's default from 1.0 to 0.001,
+  so imported height maps looked nearly flat on 4.5+ while 4.2 - 4.4
+  produced a visible bump.
+
 ## [3.10.0] - 2026-09-28
 
 ### Added
