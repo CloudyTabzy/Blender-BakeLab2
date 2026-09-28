@@ -1360,6 +1360,22 @@ class TextureImport(_BakeLabTestBase):
         self.assertEqual(img.source, 'TILED')
 
 
+    def test_udim_tile_set_is_one_image(self):
+        obj, mat = self.plane('sword')
+        nodes = mat.node_tree.nodes
+        with tempfile.TemporaryDirectory() as directory:
+            wired, _, _ = self.import_files(
+                directory, 'sword_aorm_1001.png', 'sword_aorm_1002.png')
+            self.import_files(directory, 'sword_aorm_1001.png')  # re-import
+        textures = [n for n in nodes if n.bl_idname == 'ShaderNodeTexImage']
+        self.assertEqual(len(textures), 1)
+        self.assertEqual(textures[0].image.source, 'TILED')
+        self.assertEqual(COMPAT.tile_numbers(textures[0].image), {1001, 1002})
+        self.assertEqual(len(bpy.data.images), 1)
+        self.assertEqual(sum(n.bl_idname == 'ShaderNodeMix' for n in nodes), 1)
+        self.assertEqual(len(wired), 1)
+
+
 class GridMaps(_BakeLabTestBase):
     """UV/Color grid utility maps emit a generated test pattern through
     the object's UVs."""

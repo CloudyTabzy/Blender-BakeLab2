@@ -173,6 +173,22 @@ def wire_channel(mat, stem, channel, image):
     return img_node
 
 
+def load_udim_image(path):
+    """The TILED image for one tile file of a UDIM set. Blender stores a
+    set under its '<UDIM>' path, so the other tiles of the set (or a set
+    loaded before) resolve to the same image."""
+    root, ext = os.path.splitext(path)
+    udim_path = os.path.normcase(os.path.abspath(root[:-4] + '<UDIM>' + ext))
+    for image in bpy.data.images:
+        if image.source == 'TILED' and udim_path == os.path.normcase(
+                os.path.abspath(bpy.path.abspath(image.filepath))):
+            return image
+    image = bpy.data.images.load(path, check_existing=True)
+    if image.source == 'FILE':
+        image.source = 'TILED'  # Blender fills the remaining tiles
+    return image
+
+
 def target_materials(context, key):
     """Resolve a filename key ('sword_low') to materials. Object names win
     over material names; an empty key targets the active object."""
@@ -204,6 +220,7 @@ def import_textures(context, paths, report):
     targets = {}     # normalized object/material key -> [materials]
     wired = []       # (stem, channel, material name)
     skipped = []     # (filename, reason)
+    udim_sets = set()  # (key, channel, stem) already wired from another tile
     for path in sorted(paths):
         parsed = parse_texture_file(path, extra_aliases)
         if parsed is None:
@@ -220,13 +237,19 @@ def import_textures(context, paths, report):
             skipped.append((os.path.basename(path),
                             'no object or material named "%s"' % key))
             continue
-        image = bpy.data.images.load(path, check_existing=True)
-        if tile is not None and getattr(image, 'source', None) == 'FILE':
-            image.source = 'TILED'  # Blender fills the remaining tiles
+        stem = os.path.splitext(os.path.basename(path))[0]
+        if tile is not None:
+            # One image and node serve the whole set: name_1001, name_1002...
+            stem = stem[:-4].rstrip('_-.')
+            if (key, channel, stem) in udim_sets:
+                continue
+            udim_sets.add((key, channel, stem))
+            image = load_udim_image(path)
+        else:
+            image = bpy.data.images.load(path, check_existing=True)
         compat.set_image_colorspace(
             image.colorspace_settings,
             'Non-Color' if channel in DATA_CHANNELS else 'sRGB')
-        stem = os.path.splitext(os.path.basename(path))[0]
         for mat in mats:
             wire_channel(mat, stem, channel, image)
             wired.append('%s -> %s (%s)' % (stem, mat.name, channel))
