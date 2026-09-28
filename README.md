@@ -7,7 +7,7 @@ creates the images, prepares the materials, bakes every map and packs or
 saves the results — all from one button.
 
 Compatible with **Blender 4.2 LTS → 5.2** from a single build ·
-Current release **3.9.1** · [Changelog](CHANGELOG.md)
+Current release **3.10.0** · [Changelog](CHANGELOG.md)
 
 **Fork:** https://github.com/CloudyTabzy/Blender-BakeLab2
 
@@ -19,7 +19,12 @@ Current release **3.9.1** · [Changelog](CHANGELOG.md)
   one click, no manual wiring.
 * **Preflight checklist** shows exactly what a bake will do before it runs —
   mesh selection, missing UVs (named), map counts, batch conflicts — and
-  greys out Bake while something blocks it.
+  greys out Bake while something blocks it. Non-blocking **cautions** flag
+  likely mistakes: maps overwriting each other, a GPU bake that would fall
+  back to the CPU, data maps in sRGB.
+* **Built-in quality advice** per map — noisy sample counts, lossy formats
+  on data maps, banding-prone bit depths, memory-hungry sizes — plus
+  tooltips that say what to pick, not just what a setting is.
 * Smart fallbacks: an empty map list auto-adds a default Albedo map, and a
   wired alpha input auto-adds an Alpha map — both announced, never silent.
 * **Generate Materials** rebuilds clean PBR materials wired to the baked
@@ -48,6 +53,8 @@ Current release **3.9.1** · [Changelog](CHANGELOG.md)
 * **Custom Pass** — bake any shader socket or named attribute by its name.
 * Per-map control: fixed or **adaptive** size from surface area,
   anti-aliasing supersampling, clear-image transparency, max ray distance.
+* **OpenGL or DirectX normal maps** (Unreal-ready green channel), and
+  **Adjacent Faces** margins that hide UV seams.
 
 ### 📦 Batch & automation
 

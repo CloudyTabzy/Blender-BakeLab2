@@ -10,6 +10,46 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+## [3.10.0] - 2026-09-28
+
+### Added
+
+- **Normal Format** option on Normal maps: OpenGL (+Y: Blender, Unity,
+  Godot) or DirectX (-Y: Unreal, 3ds Max). Generate Materials flips a
+  DirectX map's green channel back so it shades correctly in Blender.
+- **Margin Type** in the bake settings: Adjacent Faces (fills the margin
+  from the faces across the seam, hides seams best) or Extend.
+- **Map advice** under each map's settings, flagging settings that
+  degrade the result: a data map (Normal, Roughness, AO...) left in
+  sRGB, JPEG for data maps, too few samples for ray-traced maps (AO,
+  Combined, lighting passes), 8-bit normals, Displacement/Position
+  without float or EXR, anti-aliased normals and bakes large enough to
+  need several GB of memory.
+- The preflight checklist gains non-blocking **cautions** (they do not
+  grey out Bake): maps sharing an image name, the map advice above, and
+  GPU Compute with no GPU device enabled (Cycles then bakes on the CPU).
+  An empty output folder, or a `//`-relative one in an unsaved file, is
+  a blocker.
+- The bake reports the same cautions and the GPU fallback as warnings,
+  so headless runs see them, and ends with a summary
+  ("Baked 6 images in 12.4 s"). Preflight and advice lines are kept
+  short enough for the sidebar.
+
+### Changed
+
+- Tooltips across the panel, map settings and Add Map dialog now explain
+  what each option does and what to pick: bake modes, cage extrusion,
+  margin, anti-aliasing, texel density, samples per map type, color
+  space, file formats, PNG/EXR depth and codecs, normal space.
+- The PNG depth options read "8 bit" / "16 bit" (they said "byte").
+- The UV map now defaults to Non-Color: it stores coordinates, which
+  sRGB would distort.
+
+### Fixed
+
+- An output folder that cannot be created now fails with one clear
+  message before any job starts, instead of an OS error per job.
+
 ## [3.9.1] - 2026-09-28
 
 ### Fixed
