@@ -1392,6 +1392,19 @@ class TextureImport(_BakeLabTestBase):
         self.assertEqual(sum(n.bl_idname == 'ShaderNodeMix' for n in nodes), 1)
         self.assertEqual(len(wired), 1)
 
+    def test_displacement_pins_bump_distance(self):
+        # 4.5 changed the Bump node's Distance default from 1.0 to 0.001;
+        # the pin keeps imported height maps shading the same on 4.2 - 5.2
+        obj, mat = self.plane('sword')
+        with tempfile.TemporaryDirectory() as directory:
+            wired, skipped, _ = self.import_files(directory, 'sword_height.png')
+        bump = self.pbr(mat).inputs['Normal'].links[0].from_node
+        self.assertEqual(bump.bl_idname, 'ShaderNodeBump')
+        self.assertEqual(COMPAT.input_socket(bump, 'Distance', 1).default_value, 1.0)
+        self.assertTrue(COMPAT.input_socket(bump, 'Height', 2).is_linked)
+        self.assertEqual(len(wired), 1)
+        self.assertEqual(skipped, [])
+
 
 class GridMaps(_BakeLabTestBase):
     """UV/Color grid utility maps emit a generated test pattern through

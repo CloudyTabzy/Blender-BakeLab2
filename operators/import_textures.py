@@ -157,6 +157,9 @@ def wire_channel(mat, stem, channel, image):
         if bump is None:
             bump = nodes.new(type='ShaderNodeBump')
             bump.location = img_node.location[0] + 170, img_node.location[1]
+            # 4.5 changed the Bump Distance default from 1.0 to 0.001; pin
+            # it so imported height maps shade the same on 4.2 - 5.2
+            compat.input_socket(bump, 'Distance', 1).default_value = 1.0
             links.new(compat.output_socket(bump, 'Normal', 0),
                       compat.input_socket(pbr, 'Normal'))
         links.new(color, compat.input_socket(bump, 'Height', 2))
