@@ -62,6 +62,8 @@ class Baker(Operator):
     TMP_EMPTY_MAT_NAME = "BAKELAB_TMP_EMPTY_MAT"
     TMP_INERT_MAT_NAME = "BAKELAB_TMP_INERT_MAT"
     TMP_IMAGE_NODE_NAME = "BAKELAB_TMP_IMAGE_NODE"
+    TMP_GRID_IMAGES = {'UVGrid': "BAKELAB_TMP_UVGRID",
+                       'ColorGrid': "BAKELAB_TMP_COLORGRID"}
 
     # BakeLab map type -> Cycles bake type
     BAKE_TYPES = {
@@ -72,6 +74,8 @@ class Baker(Operator):
         'Shadow':       'SHADOW',
         'Normal':       'NORMAL',
         'UV':           'UV',
+        'UVGrid':       'EMIT',
+        'ColorGrid':    'EMIT',
         'Roughness':    'ROUGHNESS',
         'Emission':     'EMIT',
         'Environment':  'ENVIRONMENT',
@@ -823,6 +827,10 @@ class Baker(Operator):
         return (self.object_slots, self.original_materials)
 
     def RestoreMaterials(self):
+        for name in self.TMP_GRID_IMAGES.values():
+            img = bpy.data.images.get(name)
+            if img is not None:
+                bpy.data.images.remove(img)
         for i in range(0, min(len(self.object_slots), len(self.original_materials))):
             if self.object_slots[i] is not None:
                 if self.object_slots[i].material is not None:
@@ -878,6 +886,9 @@ class Baker(Operator):
                 if map.type == 'AORM':
                     self.ungroup_nodes(mat.node_tree)
                     self.aorm_to_emit_node(mat)
+                if map.type in self.TMP_GRID_IMAGES:
+                    grid = self.get_grid_image(map.type)
+                    self.grid_to_emit_node(mat, grid)
                 if map.type == 'Displacement':
                     self.displacement_to_color(mat)
                     
@@ -1231,6 +1242,38 @@ class Baker(Operator):
             out = nodes.new(type = 'ShaderNodeOutputMaterial')
         emit = nodes.new(type = 'ShaderNodeEmission')
         compat.input_socket(emit, 'Color', 0).default_value = (*color, 1.0)
+        links.new(compat.output_socket(emit, 'Emission', 0),
+                  compat.input_socket(out, 'Surface', 0))
+
+    def get_grid_image(self, map_type):
+        """The shared generated test grid for a grid bake map. Generated
+        images are procedural, so the same datablock serves every
+        material converted for the map; RestoreMaterials drops it."""
+        name = self.TMP_GRID_IMAGES[map_type]
+        img = bpy.data.images.get(name)
+        if img is None:
+            img = bpy.data.images.new(name, 1024, 1024)
+            img.generated_type = 'UV_GRID' if map_type == 'UVGrid' \
+                                 else 'COLOR_GRID'
+        return img
+
+    def grid_to_emit_node(self, mat, image):
+        """Surface = the test grid sampled through the object's UVs, so a
+        stretched unwrap shows up as distorted squares in the bake."""
+        nodes = mat.node_tree.nodes
+        links = mat.node_tree.links
+        out = self.find_node(nodes, 'OUTPUT_MATERIAL')
+        if out is None:
+            out = nodes.new(type = 'ShaderNodeOutputMaterial')
+        tex = nodes.new(type = 'ShaderNodeTexCoord')
+        img_node = nodes.new(type = 'ShaderNodeTexImage')
+        img_node.name = "BAKELAB_TMP_GRID_SRC"
+        img_node.image = image
+        emit = nodes.new(type = 'ShaderNodeEmission')
+        links.new(compat.output_socket(tex, 'UV', 2),
+                  compat.input_socket(img_node, 'Vector', 0))
+        links.new(compat.output_socket(img_node, 'Color', 0),
+                  compat.input_socket(emit, 'Color', 0))
         links.new(compat.output_socket(emit, 'Emission', 0),
                   compat.input_socket(out, 'Surface', 0))
 

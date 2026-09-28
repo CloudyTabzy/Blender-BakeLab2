@@ -19,7 +19,7 @@ bl_info = {
     "author" : "Tabzy",
     "description" : "Bake textures easily",
     "blender" : (4, 2, 0),
-    "version" : (3, 6, 0),
+    "version" : (3, 7, 0),
     "location" : "View3D > Properties > BakeLab",
     "category" : "Baking"
 }

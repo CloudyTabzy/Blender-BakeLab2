@@ -22,6 +22,8 @@ MAP_TYPE_ITEMS = (
                 ('Shadow',      'Shadow',''),
                 ('Environment', 'Environment',''),
                 ('UV',          'UV',''),
+                ('UVGrid',      'UV Grid','UV test grid - stretching shows as distorted squares'),
+                ('ColorGrid',   'Color Grid','Color grid test pattern through the UV map'),
                 ('Position',    'Position','World-space surface position; EXR keeps the full range'),
                 None,
                 ('Combined',    'Combined',''),
@@ -274,6 +276,12 @@ def apply_type_defaults(item, map_type):
         item.file_format = 'OPEN_EXR'
     if map_type == 'UV':
         item.img_name = '*_uv'
+        item.samples  = 1
+    if map_type == 'UVGrid':
+        item.img_name = '*_uvgrid'
+        item.samples  = 1
+    if map_type == 'ColorGrid':
+        item.img_name = '*_cgrid'
         item.samples  = 1
     if map_type == 'Environment':
         item.img_name = '*_env'

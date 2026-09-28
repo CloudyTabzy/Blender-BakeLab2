@@ -10,6 +10,20 @@ or raising `blender_version_min`.
 
 ## [Unreleased]
 
+## [3.7.0] - 2026-09-28
+
+### Added
+
+- **UV Grid** and **Color Grid** bake maps: bake Blender's generated
+  test grids (`generated_type` UV_GRID / COLOR_GRID) through the
+  object's UVs via an emission conversion, so stretching in the unwrap
+  shows as distorted squares or broken numbering in the output image.
+  Generate Materials wires the baked grid into Base Color so it can be
+  inspected on the model. The generated source image is shared per
+  bake and dropped afterwards; Clean Leftovers also removes stray
+  `BAKELAB_TMP_*` images (previously only objects, meshes and
+  materials).
+
 ## [3.6.0] - 2026-09-28
 
 ### Added
@@ -168,7 +182,8 @@ or raising `blender_version_min`.
     "Shader" inputs) bind to the intended socket on every version;
   - saved images keep their exact colors on all supported versions.
 
-[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.6...HEAD
+[Unreleased]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.7...HEAD
+[3.7.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.6...v3.7
 [3.6.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.5...v3.6
 [3.5.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.4...v3.5
 [3.4.0]: https://github.com/CloudyTabzy/Blender-BakeLab2/compare/v3.3.1...v3.4

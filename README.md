@@ -7,7 +7,7 @@ creates the images, prepares the materials, bakes every map and packs or
 saves the results — all from one button.
 
 Compatible with **Blender 4.2 LTS → 5.2** from a single build ·
-Current release **3.6.0** · [Changelog](CHANGELOG.md)
+Current release **3.7.0** · [Changelog](CHANGELOG.md)
 
 **Fork:** https://github.com/CloudyTabzy/Blender-BakeLab2
 
@@ -43,6 +43,8 @@ Current release **3.6.0** · [Changelog](CHANGELOG.md)
 * **Material ID** — a stable, distinct color per material for masking and
   selection work.
 * **Position** — world-space surface coordinates, EXR-ready.
+* **UV & Color grids** — bake the classic test patterns through your UVs
+  to spot stretching at a glance; they wire onto the model for inspection.
 * **Custom Pass** — bake any shader socket or named attribute by its name.
 * Per-map control: fixed or **adaptive** size from surface area,
   anti-aliasing supersampling, clear-image transparency, max ray distance.

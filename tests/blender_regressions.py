@@ -1251,6 +1251,51 @@ class TextureImport(_BakeLabTestBase):
         self.assertEqual(img.source, 'TILED')
 
 
+class GridMaps(_BakeLabTestBase):
+    """UV/Color grid utility maps emit a generated test pattern through
+    the object's UVs."""
+
+    def test_uvgrid_bakes_pattern_and_drops_tmp_image(self):
+        self.plane('Grid', uv_name='BakeUV')
+        item = self.bake_map('UVGrid')
+        item.width = item.height = 32
+        self.run_pipeline()
+        image = self.scene.BakeLab_Data[0].map_list[0].image
+        self.assertIsNotNone(image)
+        # the baked grid is not a flat fill - checkered UV space
+        px = list(image.pixels)
+        quantized = {tuple(round(c, 1) for c in px[i:i + 3])
+                     for i in range(0, len(px), 4)}
+        self.assertGreater(len(quantized), 1)
+        # the generated source image is temp - gone after the bake
+        self.assertIsNone(bpy.data.images.get('BAKELAB_TMP_UVGRID'))
+
+    def test_colorgrid_uses_color_grid_source(self):
+        baker = self.make_baker()
+        img = baker.get_grid_image('ColorGrid')
+        self.addCleanup(bpy.data.images.remove, img)
+        self.assertEqual(img.generated_type, 'COLOR_GRID')
+        img2 = baker.get_grid_image('UVGrid')
+        self.addCleanup(bpy.data.images.remove, img2)
+        self.assertEqual(img2.generated_type, 'UV_GRID')
+
+    def test_grid_map_wires_generated_material(self):
+        self.plane('Grid', uv_name='BakeUV')
+        self.bake_map('UVGrid')
+        self.run_pipeline()
+        self.assertEqual(bpy.ops.bakelab.generate_mats(), {'FINISHED'})
+        obj = bpy.data.objects['Grid']
+        gen_mat = obj.material_slots[0].material
+        base_color = gen_mat.node_tree.nodes.get('Principled BSDF').inputs['Base Color']
+        self.assertTrue(base_color.is_linked)
+        self.assertEqual(base_color.links[0].from_node.type, 'TEX_IMAGE')
+
+    def test_cleanup_removes_stray_grid_images(self):
+        bpy.data.images.new('BAKELAB_TMP_UVGRID', 8, 8)
+        self.assertEqual(bpy.ops.bakelab.cleanup(), {'FINISHED'})
+        self.assertIsNone(bpy.data.images.get('BAKELAB_TMP_UVGRID'))
+
+
 class AddonPrefs(unittest.TestCase):
     """The BakeLabPreferences GPU backend writes through to the Cycles
     addon preferences. (preferences.addons has no entry here because the
@@ -1372,6 +1417,7 @@ if __name__ == '__main__':
                 loader.loadTestsFromTestCase(NamePairBaking),
                 loader.loadTestsFromTestCase(Cleanup),
                 loader.loadTestsFromTestCase(TextureImport),
+                loader.loadTestsFromTestCase(GridMaps),
                 loader.loadTestsFromTestCase(AddonPrefs),
                 loader.loadTestsFromTestCase(CompatLayer),
             ])

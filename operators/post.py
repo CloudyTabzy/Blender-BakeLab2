@@ -56,6 +56,14 @@ class BakeLab_GenerateMaterials(Operator):
                 links.new(imgNode.outputs['Color'], pbr.inputs['Base Color'])
                 links.new(uvm.outputs['UV'], imgNode.inputs['Vector'])
                 pass_available = True
+            if bake_map.type in {'UVGrid', 'ColorGrid'}:
+                imgNode = nodes.new(type = 'ShaderNodeTexImage')
+                imgNode.hide = True
+                imgNode.location = -1000, -100
+                imgNode.image = bake_image
+                links.new(imgNode.outputs['Color'], pbr.inputs['Base Color'])
+                links.new(uvm.outputs['UV'], imgNode.inputs['Vector'])
+                pass_available = True
             if bake_map.type == 'Combined':
                 imgNode = nodes.new(type = 'ShaderNodeTexImage')
                 imgNode.hide = True
@@ -499,7 +507,8 @@ class BakeLab_Cleanup(Operator):
                 stripped += 1
         removed = self.remove_prefixed(bpy.data.objects, 'BAKELAB_MERGED_OBJ_TMP') \
                 + self.remove_prefixed(bpy.data.meshes, 'BAKELAB_MERGED_MESH_TMP') \
-                + self.remove_prefixed(bpy.data.materials, 'BAKELAB_TMP')
+                + self.remove_prefixed(bpy.data.materials, 'BAKELAB_TMP') \
+                + self.remove_prefixed(bpy.data.images, 'BAKELAB_TMP')
         # A file saved mid-bake reloads with the panel stuck on BAKING
         unstuck = 0
         if context.scene.BakeLabProps.bake_state != 'NONE':
